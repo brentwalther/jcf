@@ -1,0 +1,52 @@
+syntax = "proto2";
+
+package net.brentwalther.jcf;
+
+option java_package = "net.brentwalther.jcf.model";
+option java_outer_classname = "JcfModel";
+
+message Account {
+    optional string id = 1;
+
+    optional string name = 2;
+
+    enum Type {
+        UNKNOWN_TYPE = 0;
+        ROOT = 1;
+        ASSET = 2;
+        LIABILITY = 3;
+        EQUITY = 4;
+        INCOME = 5;
+        EXPENSE = 6;
+    }
+
+    optional Type type = 3;
+
+    optional string parent_id = 4;
+}
+
+message Split {
+    optional string transaction_id = 1;
+
+    optional string account_id = 2;
+
+    optional int32 value_numerator = 3;
+
+    optional int32 value_denominator = 4;
+}
+
+message Transaction {
+    optional string id = 1;
+
+    optional string description = 2;
+
+    optional int64 post_date_epoch_second = 3;
+}
+
+message Model {
+    repeated Account account = 1;
+
+    repeated Transaction transaction = 2;
+
+    repeated Split split = 3;
+}
