@@ -12,6 +12,7 @@ public class Transaction {
   public final String id;
   public final Instant postDate;
   public final String description;
+
   public Transaction(DataSource dataSource, String id, Instant postDate, String description) {
     this.dataSource = dataSource;
     this.id = id;

@@ -23,6 +23,7 @@ public class MainMenuScreen {
           .put("Load OFX file", Screen.LOAD_OFX)
           .put("Review Unmerged Model(s)", Screen.REVIEW_UNMERGED_MODELS)
           .put("Export all current model expenses", Screen.CSV_EXPORT)
+          .put("Export current model to ledger format", Screen.LEDGER_EXPORT)
           .put("Exit application", Screen.EXIT)
           .build();
 
@@ -74,6 +75,11 @@ public class MainMenuScreen {
                     exportItem -> !exportItem.account().type.equals(Account.Type.EXPENSE)));
           }
           break;
+        case LEDGER_EXPORT:
+          File ledgerFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
+          if (ledgerFile != null && ledgerFile.exists()) {
+            LedgerExportScreen.start(ModelManager.getCurrentModel(), ledgerFile);
+          }
         case EXIT:
           return;
       }

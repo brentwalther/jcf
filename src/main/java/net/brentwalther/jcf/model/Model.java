@@ -19,6 +19,7 @@ public class Model {
   public final ImmutableMap<String, Transaction> transactionsById;
   public final ImmutableMultimap<String, Split> splitsByTransactionId;
   private final Instant createdTime;
+
   public Model(
       Map<String, Account> accountsById,
       Map<String, Transaction> transactionsById,
