@@ -3,6 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.CodedOutputStream;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
@@ -46,7 +47,7 @@ public class JcfExportScreen {
       jcfModel.build().writeTo(CodedOutputStream.newInstance(new FileOutputStream(file)));
     } catch (IOException e) {
       PromptEvaluator.showAndGetResult(
-          App.getTerminal(),
+          TerminalProvider.get(),
           NoticePrompt.withMessages(
               ImmutableList.of(
                   "Failed to export model " + model,

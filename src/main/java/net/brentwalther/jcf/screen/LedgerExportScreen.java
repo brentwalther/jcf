@@ -4,6 +4,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
@@ -53,7 +54,7 @@ public class LedgerExportScreen {
     int maxAccountNameLength =
         accountIdToFullString.values().stream().mapToInt(String::length).max().orElse(0);
 
-    Terminal terminal = App.getTerminal();
+    Terminal terminal = TerminalProvider.get();
     try (PrintWriter writer = new PrintWriter(new FileOutputStream(ledgerFile))) {
       List<Transaction> transactions = new ArrayList<>(currentModel.transactionsById.values());
       transactions.sort(Ordering.natural().onResultOf(t -> t.postDate));
@@ -76,7 +77,7 @@ public class LedgerExportScreen {
       terminal.writer().println("Exception occurred while trying to write ledger file: " + e);
     }
     try {
-      new LineReaderImpl(terminal).readLine("Press any key to continue...");
+      new LineReaderImpl(terminal).readLine("Export to " + ledgerFile.getName() + " complete. Press any key to continue...");
     } catch (IOException e) {
       /* do nothing. */
     }

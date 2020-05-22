@@ -3,6 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
@@ -19,7 +20,7 @@ import java.io.File;
 public class OFXImportScreen {
 
   public static void start(File file) {
-    Terminal terminal = App.getTerminal();
+    Terminal terminal = TerminalProvider.get();
     Model model = ModelManager.getCurrentModel();
 
     if (model.accountsById.isEmpty()) {
@@ -76,7 +77,7 @@ public class OFXImportScreen {
     // Now that we know which account these transactions are for, fix the imported model and splits.
     ModelManager.addModel(updatedModel);
     PromptEvaluator.showAndGetResult(
-        App.getTerminal(),
+        TerminalProvider.get(),
         NoticePrompt.withMessages(
             ImmutableList.of(
                 "Imported " + updatedModel.accountsById.size() + " accounts.",

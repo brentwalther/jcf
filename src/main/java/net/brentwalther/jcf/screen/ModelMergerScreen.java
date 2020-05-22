@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimaps;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -33,7 +34,7 @@ public class ModelMergerScreen {
             && split.amount().compareTo(otherSplit.amount()) == 0
             && transaction.postDate.equals(otherTransaction.postDate)) {
           PromptEvaluator.showAndGetResult(
-              App.getTerminal(),
+              TerminalProvider.get(),
               NoticePrompt.withMessages(
                   ImmutableList.of(
                       "This transaction appears to be a duplicate. Refusing to merge!",

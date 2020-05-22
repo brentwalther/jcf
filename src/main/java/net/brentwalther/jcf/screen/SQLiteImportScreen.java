@@ -2,6 +2,7 @@ package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.importer.SQLiteConnector;
@@ -15,7 +16,7 @@ public class SQLiteImportScreen {
     Model model = new SQLiteConnector(file).extract();
 
     PromptEvaluator.showAndGetResult(
-        App.getTerminal(),
+        TerminalProvider.get(),
         NoticePrompt.withMessages(
             ImmutableList.of(
                 "Imported " + model.accountsById.size() + " accounts.",

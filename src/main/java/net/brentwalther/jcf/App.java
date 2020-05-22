@@ -9,26 +9,24 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
 
 import java.io.File;
+import java.io.IOException;
 
 public class App {
 
   private static final String HELP_OPTION = "h";
   private static final String GNUCASH_DATABASE_FILE_OPTION = "gnucash-sqlite-db";
 
-  private static Terminal terminal;
-
   public static void main(String[] args) throws Exception {
     // Initialize the driver.
     // TODO: Figure out why this is necessary.
     Class.forName("org.sqlite.JDBC");
 
-    terminal = TerminalBuilder.terminal();
-
     CommandLineParser parser = new DefaultParser();
     CommandLine commandLine = parser.parse(getOptions(), args);
+
+    Terminal terminal = TerminalProvider.get();
 
     if (commandLine.hasOption(HELP_OPTION)) {
       HelpFormatter formatter = new HelpFormatter();
@@ -47,10 +45,6 @@ public class App {
     }
 
     MainMenuScreen.start();
-  }
-
-  public static Terminal getTerminal() {
-    return terminal;
   }
 
   private static Options getOptions() {

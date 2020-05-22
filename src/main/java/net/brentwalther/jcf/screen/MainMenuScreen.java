@@ -3,6 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
@@ -28,7 +29,7 @@ public class MainMenuScreen {
           .build();
 
   public static void start() {
-    Terminal terminal = App.getTerminal();
+    Terminal terminal = TerminalProvider.get();
     ImmutableList<String> options = MAIN_MENU_OPTIONS.keySet().asList();
 
     while (true) {

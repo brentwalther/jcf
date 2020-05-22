@@ -12,6 +12,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
@@ -42,7 +43,7 @@ class ModelReviewScreen {
 
     ImmutableList<String> optionNames = OPTIONS.keySet().asList();
 
-    Terminal terminal = App.getTerminal();
+    Terminal terminal = TerminalProvider.get();
     int maxWidth = terminal.getWidth();
 
     String accountList =
@@ -101,7 +102,7 @@ class ModelReviewScreen {
             || accountCounts.count(mostFrequentlyOccuringAccount)
                 != model.transactionsById.size()) {
           PromptEvaluator.showAndGetResult(
-              App.getTerminal(),
+              TerminalProvider.get(),
               NoticePrompt.withMessages(
                   ImmutableList.of(
                       "The most frequently occuring account in this model is "

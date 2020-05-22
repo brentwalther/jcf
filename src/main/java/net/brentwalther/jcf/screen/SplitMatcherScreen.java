@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import net.brentwalther.jcf.App;
+import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
@@ -24,11 +25,11 @@ import java.util.List;
 public class SplitMatcherScreen {
 
   private static final Account UNSELECTED_ACCOUNT =
-      new Account("none", "None of the above (reconcile later)", Account.Type.EQUITY, "");
+      new Account("UNMATCHED", "UNMATCHED", Account.Type.EXPENSE, "");
 
   public static void start(SplitMatcher splitMatcher, Model model) {
     ModelManager.removeModel(model);
-    Terminal terminal = App.getTerminal();
+    Terminal terminal = TerminalProvider.get();
     Account account = Iterables.getOnlyElement(model.accountsById.values());
     int totalMatchesToMake = model.transactionsById.size();
     ImmutableSet.Builder<Account> matchedAccounts = ImmutableSet.<Account>builder().add(account);

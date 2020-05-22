@@ -52,7 +52,9 @@ public class SplitMatcher {
       String description, ImmutableSet<Account> accountsToExclude) {
     Multiset<Account> matches = HashMultiset.create();
     for (String token : SPACE_SPLITTER.split(description)) {
-      matches.addAll(tokenMatches.get(token));
+      if (tokenMatches.containsKey(token)) {
+        matches.addAll(tokenMatches.get(token));
+      }
     }
     // We don't want to match on the account that's selected. We're trying to see where the
     // cash is going.

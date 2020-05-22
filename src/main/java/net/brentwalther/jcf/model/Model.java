@@ -39,7 +39,7 @@ public class Model {
     this.splitsByTransactionId = ImmutableMultimap.copyOf(splitsByTransactionId);
   }
 
-  public Model(List<Account> accounts, List<Transaction> transactions, List<Split> splits) {
+  public Model(Iterable<Account> accounts, Iterable<Transaction> transactions, Iterable<Split> splits) {
     this(
         Maps.uniqueIndex(accounts, (account) -> account.id),
         Maps.uniqueIndex(transactions, (transaction) -> transaction.id),
