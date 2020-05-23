@@ -25,7 +25,7 @@ import java.util.List;
 public class SplitMatcherScreen {
 
   private static final Account UNSELECTED_ACCOUNT =
-      new Account("UNMATCHED", "UNMATCHED", Account.Type.EXPENSE, "");
+      new Account("UNMATCHED", "Imbalance (UNKNOWN)", Account.Type.EXPENSE, "");
 
   public static void start(SplitMatcher splitMatcher, Model model) {
     ModelManager.removeModel(model);
@@ -80,10 +80,6 @@ public class SplitMatcherScreen {
                       .withPrefaces(prefaces)
                       .build(),
                   statusMessages));
-      if (chosenOption == null || options.get(chosenOption).equals(UNSELECTED_ACCOUNT)) {
-        // The user escaped the prompt. Just skip this one.
-        continue;
-      }
 
       Account chosenAccount = options.get(chosenOption);
       matchedAccounts.add(chosenAccount);
