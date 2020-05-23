@@ -80,8 +80,11 @@ public class CsvMatcher {
     }
 
     File ledgerFile = new File(args[3]);
-    if (!ledgerFile.exists() || !ledgerFile.isFile()) {
-      System.err.println("The fourth arg (" + args[3] + ") does not refer to a file that exists.");
+    if (ledgerFile.exists()) {
+      System.err.println(
+          "The fourth arg ("
+              + args[3]
+              + ") refers to a file that already exist. You must specify a new file.");
       System.exit(1);
     }
 
@@ -143,8 +146,7 @@ public class CsvMatcher {
               + " fields. Exiting,");
       System.exit(1);
     }
-    Account placeholderAccount =
-        new Account("tofindandreplacelater", "An Account", Account.Type.ASSET, "");
+    Account placeholderAccount = new Account("placeholder", "An Account", Account.Type.ASSET, "");
     List<Transaction> transactions = new ArrayList<>();
     List<Split> splits = new ArrayList<>();
     int id = 0;
