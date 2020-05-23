@@ -88,16 +88,17 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    SplitMatcher matcher = createSplitMatcher(mappingFile);
+    Model mappingsModel = extractModelFrom(mappingFile);
+    SplitMatcher matcher = new SplitMatcher(mappingsModel);
     Model model =
         createModelFromCsv(
             csvFile, Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)));
-    SplitMatcherScreen.start(matcher, model);
+    SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
     LedgerExportScreen.start(
         Iterables.getOnlyElement(ModelManager.getUnmergedModels()), ledgerFile);
   }
 
-  private static SplitMatcher createSplitMatcher(File mappingFile) throws FileNotFoundException {
+  private static Model extractModelFrom(File mappingFile) throws FileNotFoundException {
     Scanner scanner = new Scanner(mappingFile);
     Map<String, Account> accountsById = new HashMap<>();
     List<Transaction> transactions = new ArrayList<>();
@@ -122,8 +123,7 @@ public class CsvMatcher {
               Transaction.DataSource.EXPENSE_MAPPING_FILE, transactionId, Instant.now(), payee));
       splits.add(new Split(account, transactionId, 0, 1));
     }
-    Model model = new Model(accountsById.values(), transactions, splits);
-    return new SplitMatcher(model);
+    return new Model(accountsById.values(), transactions, splits);
   }
 
   private static Model createModelFromCsv(

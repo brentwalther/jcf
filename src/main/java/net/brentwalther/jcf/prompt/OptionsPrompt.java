@@ -1,21 +1,45 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.jline.terminal.Size;
 
 import java.util.List;
 import java.util.Optional;
 
-public class OptionsPrompt implements Prompt<Integer> {
+public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
+
+  public enum ChoiceType {
+    NUMBERED_OPTION,
+    AUTOCOMPLETE_OPTION,
+    EMPTY
+  }
+
+  public static class Choice {
+    public final ChoiceType type;
+    public final Integer numberChoice;
+    public final String autocompleteChoice;
+
+    public Choice(ChoiceType type, Integer numberChoice, String autocompleteChoice) {
+      this.type = type;
+      this.numberChoice = numberChoice;
+      this.autocompleteChoice = autocompleteChoice;
+    }
+  }
 
   private final ImmutableList<String> options;
   private final Integer defaultOption;
+  private final ImmutableSet<String> autoCompleteOptions;
   private final ImmutableList<String> prefaces;
 
   private OptionsPrompt(
-      List<String> options, Integer defaultOption, ImmutableList<String> prefaces) {
+      ImmutableList<String> options,
+      Integer defaultOption,
+      ImmutableSet<String> autoCompleteOptions,
+      ImmutableList<String> prefaces) {
     this.options = ImmutableList.copyOf(options);
     this.defaultOption = defaultOption;
+    this.autoCompleteOptions = autoCompleteOptions;
     this.prefaces = prefaces;
   }
 
@@ -57,16 +81,29 @@ public class OptionsPrompt implements Prompt<Integer> {
   }
 
   @Override
-  public Optional<Integer> transform(String input) {
+  public ImmutableSet<String> getAutoCompleteOptions() {
+    return autoCompleteOptions;
+  }
+
+  @Override
+  public Optional<Choice> transform(String input) {
+    input = input.trim();
+    if (autoCompleteOptions.contains(input)) {
+      return Optional.of(new Choice(ChoiceType.AUTOCOMPLETE_OPTION, null, input));
+    }
     try {
       int option = -1;
-      if (input.isEmpty() && defaultOption != null) {
-        option = defaultOption;
+      if (input.isEmpty()) {
+        if (defaultOption != null) {
+          option = defaultOption;
+        } else {
+          return Optional.of(new Choice(ChoiceType.EMPTY, null, null));
+        }
       } else {
         option = Integer.parseInt(input);
       }
       if (option > 0 && option <= options.size()) {
-        return Optional.of(option - 1);
+        return Optional.of(new Choice(ChoiceType.NUMBERED_OPTION, option - 1, null));
       } else {
         return Optional.empty();
       }
@@ -76,13 +113,15 @@ public class OptionsPrompt implements Prompt<Integer> {
   }
 
   public static class Builder {
-    private final List<String> options;
+    private final ImmutableList<String> options;
     private Integer defaultOption;
     private ImmutableList<String> prefaces;
+    private ImmutableSet<String> autoCompleteOptions;
 
-    public Builder(List<String> options) {
-      this.options = options;
+    public Builder(Iterable<String> options) {
+      this.options = ImmutableList.copyOf(options);
       this.defaultOption = null;
+      this.autoCompleteOptions = ImmutableSet.of();
       this.prefaces = ImmutableList.of();
     }
 
@@ -95,13 +134,18 @@ public class OptionsPrompt implements Prompt<Integer> {
       return this;
     }
 
-    public Builder withPrefaces(ImmutableList<String> prefaces) {
-      this.prefaces = prefaces;
+    public Builder withAutoCompleteOptions(Iterable<String> autoCompleteOptions) {
+      this.autoCompleteOptions = ImmutableSet.copyOf(autoCompleteOptions);
+      return this;
+    }
+
+    public Builder withPrefaces(Iterable<String> prefaces) {
+      this.prefaces = ImmutableList.copyOf(prefaces);
       return this;
     }
 
     public OptionsPrompt build() {
-      return new OptionsPrompt(options, defaultOption, prefaces);
+      return new OptionsPrompt(options, defaultOption, autoCompleteOptions, prefaces);
     }
   }
 }

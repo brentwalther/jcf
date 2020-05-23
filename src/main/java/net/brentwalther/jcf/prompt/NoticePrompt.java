@@ -1,6 +1,7 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.jline.terminal.Size;
 
 import java.util.Optional;
@@ -35,5 +36,10 @@ public class NoticePrompt implements Prompt<Object> {
   @Override
   public ImmutableList<String> getStatusBars() {
     return ImmutableList.of();
+  }
+
+  @Override
+  public ImmutableSet<String> getAutoCompleteOptions() {
+    return ImmutableSet.of();
   }
 }

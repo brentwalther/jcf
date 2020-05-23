@@ -1,6 +1,7 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import net.brentwalther.jcf.model.Model;
 import org.jline.terminal.Size;
@@ -22,9 +23,10 @@ public class ModelPickerPrompt implements Prompt<Model> {
 
   @Override
   public Optional<Model> transform(String input) {
-    Optional<Integer> selectedOption = optionsPrompt.transform(input);
-    if (selectedOption.isPresent()) {
-      return Optional.of(modelOptions.get(selectedOption.get()));
+    Optional<OptionsPrompt.Choice> selectedOption = optionsPrompt.transform(input);
+    if (selectedOption.isPresent() && selectedOption.get().type != OptionsPrompt.ChoiceType.EMPTY) {
+      // Assume the choice will always be a number.
+      return Optional.of(modelOptions.get(selectedOption.get().numberChoice));
     }
     return Optional.empty();
   }
@@ -42,5 +44,10 @@ public class ModelPickerPrompt implements Prompt<Model> {
   @Override
   public ImmutableList<String> getStatusBars() {
     return optionsPrompt.getStatusBars();
+  }
+
+  @Override
+  public ImmutableSet<String> getAutoCompleteOptions() {
+    return ImmutableSet.of();
   }
 }

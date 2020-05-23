@@ -1,10 +1,11 @@
 package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import net.brentwalther.jcf.App;
+import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
@@ -27,7 +28,8 @@ public class SplitMatcherScreen {
   private static final Account UNSELECTED_ACCOUNT =
       new Account("UNMATCHED", "Imbalance (UNKNOWN)", Account.Type.EXPENSE, "");
 
-  public static void start(SplitMatcher splitMatcher, Model model) {
+  public static void start(
+      SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {
     ModelManager.removeModel(model);
     Terminal terminal = TerminalProvider.get();
     Account account = Iterables.getOnlyElement(model.accountsById.values());
@@ -46,6 +48,9 @@ public class SplitMatcherScreen {
               .addAll(splitMatcher.getTopMatches(transactionDescription, ImmutableSet.of(account)))
               .add(UNSELECTED_ACCOUNT)
               .build();
+
+      ImmutableMap<String, Account> accountsByName =
+          Maps.uniqueIndex(allKnownAccounts, a -> a.name);
 
       Split existingSplit =
           Iterables.getOnlyElement(model.splitsByTransactionId.get(transactionId));
@@ -71,17 +76,31 @@ public class SplitMatcherScreen {
                   + account.name
                   + (isFlowingOut ? " to:" : " from:"));
 
-      Integer chosenOption =
+      OptionsPrompt.Choice result =
           PromptEvaluator.showAndGetResult(
               terminal,
               PromptDecorator.decorateWithStatusBars(
                   OptionsPrompt.builder(Lists.transform(options, (candidate) -> candidate.name))
                       .withDefaultOption(1)
+                      .withAutoCompleteOptions(accountsByName.keySet())
                       .withPrefaces(prefaces)
                       .build(),
                   statusMessages));
 
-      Account chosenAccount = options.get(chosenOption);
+      Account chosenAccount = UNSELECTED_ACCOUNT;
+      if (result != null) {
+        switch (result.type) {
+          case EMPTY:
+            // Chosen is already set to UNSELECTED.
+            break;
+          case NUMBERED_OPTION:
+            chosenAccount = options.get(result.numberChoice);
+            break;
+          case AUTOCOMPLETE_OPTION:
+            chosenAccount = accountsByName.get(result.autocompleteChoice);
+            break;
+        }
+      }
       matchedAccounts.add(chosenAccount);
       matches.add(
           new Split(

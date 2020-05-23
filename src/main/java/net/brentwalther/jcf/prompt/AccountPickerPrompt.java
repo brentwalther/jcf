@@ -7,6 +7,7 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
 import net.brentwalther.jcf.model.Account;
@@ -120,5 +121,10 @@ public class AccountPickerPrompt implements Prompt<Account> {
   @Override
   public ImmutableList<String> getStatusBars() {
     return ImmutableList.of();
+  }
+
+  @Override
+  public ImmutableSet<String> getAutoCompleteOptions() {
+    return FluentIterable.from(accountsById.values()).transform((account) -> account.name).toSet();
   }
 }

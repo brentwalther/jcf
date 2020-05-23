@@ -2,7 +2,6 @@ package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
@@ -37,14 +36,18 @@ public class MainMenuScreen {
           ImmutableList.of(
               "Current model: " + ModelManager.getCurrentModel().toString(),
               "Unmerged imports: " + ModelManager.getUnmergedModels().size());
-      Integer selectedOption =
+      OptionsPrompt.Choice selectedOption =
           PromptEvaluator.showAndGetResult(
               terminal,
               PromptDecorator.decorateWithStatusBars(OptionsPrompt.create(options), statusBars));
       if (selectedOption == null) {
         break;
       }
-      Screen nextState = MAIN_MENU_OPTIONS.get(options.get(selectedOption));
+      if (selectedOption.type == OptionsPrompt.ChoiceType.EMPTY) {
+        continue;
+      }
+      // Just assume it is a number since we didn't pass in autocomplete options and it isn't empty.
+      Screen nextState = MAIN_MENU_OPTIONS.get(options.get(selectedOption.numberChoice));
       switch (nextState) {
         case LOAD_SQLITE:
           File sqliteFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.existingFile());

@@ -11,7 +11,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
@@ -64,23 +63,30 @@ class ModelReviewScreen {
             accountList.substring(0, Math.min(accountList.length(), maxWidth)),
             transactionOverview);
 
-    Integer selectedOption =
-        PromptEvaluator.showAndGetResult(
-            terminal,
-            PromptDecorator.decorateWithStatusBars(
-                OptionsPrompt.builder(optionNames)
-                    .withDefaultOption(1)
-                    .withPrefaces(prefaces)
-                    .build(),
-                ImmutableList.of("Reviewing: " + model)));
+    OptionsPrompt.Choice selectedOption;
+    do {
+      selectedOption =
+          PromptEvaluator.showAndGetResult(
+              terminal,
+              PromptDecorator.decorateWithStatusBars(
+                  OptionsPrompt.builder(optionNames)
+                      .withDefaultOption(1)
+                      .withPrefaces(prefaces)
+                      .build(),
+                  ImmutableList.of("Reviewing: " + model)));
 
-    if (selectedOption == null) {
-      return;
-    }
+      if (selectedOption == null) {
+        return;
+      }
+    } while (selectedOption.type == OptionsPrompt.ChoiceType.EMPTY);
 
-    switch (OPTIONS.get(optionNames.get(selectedOption))) {
+    // Assume the option is numeric since we didn't pass in autocomplete options.
+    switch (OPTIONS.get(optionNames.get(selectedOption.numberChoice))) {
       case MATCH_SPLITS:
-        SplitMatcherScreen.start(SplitMatcher.create(ModelManager.getCurrentModel()), model);
+        SplitMatcherScreen.start(
+            SplitMatcher.create(ModelManager.getCurrentModel()),
+            model,
+            ModelManager.getCurrentModel().accountsById.values());
         break;
       case MERGE_MODEL:
         ModelMergerScreen.start(model);

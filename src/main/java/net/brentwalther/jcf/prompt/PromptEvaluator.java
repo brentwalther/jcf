@@ -1,13 +1,13 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
-import org.jline.reader.impl.LineReaderImpl;
+import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
 import org.jline.utils.InfoCmp;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -25,8 +25,13 @@ public class PromptEvaluator<T> {
       terminal.flush();
       String input;
       try {
-        input = new LineReaderImpl(terminal).readLine(prompt.getPromptString());
-      } catch (IOException | UserInterruptException e) {
+        input =
+            LineReaderBuilder.builder()
+                .terminal(terminal)
+                .completer(new StringsCompleter(prompt.getAutoCompleteOptions()))
+                .build()
+                .readLine(prompt.getPromptString());
+      } catch (UserInterruptException e) {
         return null;
       }
       result = prompt.transform(input);

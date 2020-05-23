@@ -1,6 +1,7 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.jline.terminal.Size;
 
 import java.util.Optional;
@@ -28,4 +29,7 @@ public interface Prompt<T> {
 
   /** Returns the list of status bar strings to printed at the very top of the screen. */
   ImmutableList<String> getStatusBars();
+
+  /** Returns the set of strings that the prompt auto completer will be filled with. */
+  ImmutableSet<String> getAutoCompleteOptions();
 }
