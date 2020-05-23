@@ -3,7 +3,6 @@ package net.brentwalther.jcf.screen;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
@@ -30,10 +29,7 @@ public class LedgerExportScreen {
     // First produce a map of accounts to names like Assets:Investments:VTSAX
     Map<String, String> accountIdToFullString = new HashMap<>();
     for (Account account : currentModel.accountsById.values()) {
-      if (account.parentId.isEmpty()) {
-        // Skip the root account.
-        continue;
-      } else if (accountIdToFullString.containsKey(account.parentId)) {
+      if (accountIdToFullString.containsKey(account.parentId)) {
         accountIdToFullString.put(
             account.id,
             accountIdToFullString.get(account.parentId) + ACCOUNT_DELIMITER + account.name);
@@ -42,9 +38,10 @@ public class LedgerExportScreen {
         // thing.
         String originalId = account.id;
         List<String> names = new ArrayList<>(4);
-        while (!account.parentId.isEmpty()) {
-          names.add(account.name);
+        names.add(account.name);
+        while (!account.parentId.isEmpty() && currentModel.accountsById.containsKey(account.parentId)) {
           account = currentModel.accountsById.get(account.parentId);
+          names.add(account.name);
         }
         accountIdToFullString.put(
             originalId, Joiner.on(ACCOUNT_DELIMITER).join(Lists.reverse(names)));
@@ -77,7 +74,9 @@ public class LedgerExportScreen {
       terminal.writer().println("Exception occurred while trying to write ledger file: " + e);
     }
     try {
-      new LineReaderImpl(terminal).readLine("Export to " + ledgerFile.getName() + " complete. Press any key to continue...");
+      new LineReaderImpl(terminal)
+          .readLine(
+              "Export to " + ledgerFile.getName() + " complete. Press any key to continue...");
     } catch (IOException e) {
       /* do nothing. */
     }
