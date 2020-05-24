@@ -22,7 +22,6 @@ public class SplitMatcher {
   private static final Pattern NON_ALPHANUM_CHAR_PATTERN = Pattern.compile("[^0-9A-Za-z]");
   private static final Pattern REPEATED_DIGITS_PATTERN = Pattern.compile("[0-9]{4,25}");
 
-
   private final Map<String, Multiset<Account>> fullMatches;
   private final Map<String, Multiset<Account>> tokenMatches;
 

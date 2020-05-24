@@ -1,7 +1,6 @@
 package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;

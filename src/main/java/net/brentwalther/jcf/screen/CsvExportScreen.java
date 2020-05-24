@@ -4,7 +4,6 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;

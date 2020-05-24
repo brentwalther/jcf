@@ -20,6 +20,7 @@ import java.io.FileNotFoundException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,20 +30,6 @@ import java.util.Scanner;
 import java.util.Set;
 
 public class CsvMatcher {
-
-  private enum CsvField {
-    DATE("date"),
-    DESCRIPTION("desc"),
-    DEBIT("debit"),
-    CREDIT("credit"),
-    ;
-
-    private final String stringVal;
-
-    CsvField(String stringVal) {
-      this.stringVal = stringVal;
-    }
-  }
 
   private static final ImmutableSet<CsvField> CSV_FIELDS = ImmutableSet.copyOf(CsvField.values());
   private static final Splitter CSV_SPLITTER = Splitter.on(',');
@@ -70,32 +57,26 @@ public class CsvMatcher {
     List<String> fieldPositions = CSV_SPLITTER.splitToList(args[2]);
     Set<String> csvFieldNames =
         ImmutableSet.copyOf(Iterables.transform(CSV_FIELDS, (field) -> field.stringVal));
-    if (!fieldPositions.containsAll(csvFieldNames)) {
+    if (Iterables.any(
+        fieldPositions, field -> !field.isEmpty() && !csvFieldNames.contains(field))) {
       System.err.println(
           "The third arg ("
               + args[2]
-              + ") must be a csv string that names every expected field: "
+              + ") must be a csv string only containing fields: "
               + csvFieldNames);
       System.exit(1);
     }
 
-    File ledgerFile = new File(args[3]);
-    if (ledgerFile.exists()) {
-      System.err.println(
-          "The fourth arg ("
-              + args[3]
-              + ") refers to a file that already exist. You must specify a new file.");
-      System.exit(1);
-    }
+    String dateFormat = args[3];
 
     Model mappingsModel = extractModelFrom(mappingFile);
     SplitMatcher matcher = new SplitMatcher(mappingsModel);
     Model model =
         createModelFromCsv(
-            csvFile, Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)));
+            csvFile, Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)), dateFormat);
     SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
     LedgerExportScreen.start(
-        Iterables.getOnlyElement(ModelManager.getUnmergedModels()), ledgerFile);
+        Iterables.getOnlyElement(ModelManager.getUnmergedModels()), System.out);
   }
 
   private static Model extractModelFrom(File mappingFile) throws FileNotFoundException {
@@ -127,7 +108,7 @@ public class CsvMatcher {
   }
 
   private static Model createModelFromCsv(
-      File csvFile, ImmutableMap<CsvField, Integer> csvFieldPositions)
+      File csvFile, ImmutableMap<CsvField, Integer> csvFieldPositions, String dateFormat)
       throws FileNotFoundException {
     int maxFieldPosition = csvFieldPositions.values().stream().max(Integer::compareTo).get();
     Scanner scanner = new Scanner(csvFile);
@@ -164,14 +145,18 @@ public class CsvMatcher {
         continue;
       }
       Instant date =
-          LocalDate.parse(pieces.get(csvFieldPositions.get(CsvField.DATE)))
+          LocalDate.from(
+                  DateTimeFormatter.ofPattern(dateFormat)
+                      .parse(pieces.get(csvFieldPositions.get(CsvField.DATE))))
               .atStartOfDay(ZoneId.systemDefault())
               .toInstant();
       String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
       int valueNum = 0;
       int valueDenom = 100;
-      String stringAmount = pieces.get(csvFieldPositions.get(CsvField.DEBIT));
-      if (pieces.get(csvFieldPositions.get(CsvField.DEBIT)).isEmpty()) {
+      if (csvFieldPositions.get(CsvField.AMOUNT) != -1) {
+        valueNum =
+            Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.AMOUNT)).replace(".", ""));
+      } else if (pieces.get(csvFieldPositions.get(CsvField.DEBIT)).isEmpty()) {
         valueNum =
             Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.CREDIT)).replace(".", ""));
       } else {
@@ -184,5 +169,19 @@ public class CsvMatcher {
       splits.add(new Split(placeholderAccount.id, transactionId, valueNum, valueDenom));
     }
     return new Model(ImmutableList.of(placeholderAccount), transactions, splits);
+  }
+
+  private enum CsvField {
+    DATE("date"),
+    DESCRIPTION("desc"),
+    DEBIT("debit"),
+    CREDIT("credit"),
+    AMOUNT("amt");
+
+    private final String stringVal;
+
+    CsvField(String stringVal) {
+      this.stringVal = stringVal;
+    }
   }
 }

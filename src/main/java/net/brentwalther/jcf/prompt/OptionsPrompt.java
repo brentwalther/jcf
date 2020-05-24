@@ -9,29 +9,10 @@ import java.util.Optional;
 
 public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
 
-  public enum ChoiceType {
-    NUMBERED_OPTION,
-    AUTOCOMPLETE_OPTION,
-    EMPTY
-  }
-
-  public static class Choice {
-    public final ChoiceType type;
-    public final Integer numberChoice;
-    public final String autocompleteChoice;
-
-    public Choice(ChoiceType type, Integer numberChoice, String autocompleteChoice) {
-      this.type = type;
-      this.numberChoice = numberChoice;
-      this.autocompleteChoice = autocompleteChoice;
-    }
-  }
-
   private final ImmutableList<String> options;
   private final Integer defaultOption;
   private final ImmutableSet<String> autoCompleteOptions;
   private final ImmutableList<String> prefaces;
-
   private OptionsPrompt(
       ImmutableList<String> options,
       Integer defaultOption,
@@ -109,6 +90,24 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
       }
     } catch (NumberFormatException e) {
       return Optional.empty();
+    }
+  }
+
+  public enum ChoiceType {
+    NUMBERED_OPTION,
+    AUTOCOMPLETE_OPTION,
+    EMPTY
+  }
+
+  public static class Choice {
+    public final ChoiceType type;
+    public final Integer numberChoice;
+    public final String autocompleteChoice;
+
+    public Choice(ChoiceType type, Integer numberChoice, String autocompleteChoice) {
+      this.type = type;
+      this.numberChoice = numberChoice;
+      this.autocompleteChoice = autocompleteChoice;
     }
   }
 

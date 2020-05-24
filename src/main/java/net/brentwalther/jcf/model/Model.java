@@ -9,7 +9,6 @@ import com.google.common.hash.Hashing;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
 public class Model {
@@ -39,7 +38,8 @@ public class Model {
     this.splitsByTransactionId = ImmutableMultimap.copyOf(splitsByTransactionId);
   }
 
-  public Model(Iterable<Account> accounts, Iterable<Transaction> transactions, Iterable<Split> splits) {
+  public Model(
+      Iterable<Account> accounts, Iterable<Transaction> transactions, Iterable<Split> splits) {
     this(
         Maps.uniqueIndex(accounts, (account) -> account.id),
         Maps.uniqueIndex(transactions, (transaction) -> transaction.id),

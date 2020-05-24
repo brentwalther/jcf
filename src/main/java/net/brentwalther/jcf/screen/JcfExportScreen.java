@@ -2,7 +2,6 @@ package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.CodedOutputStream;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.JcfModel;

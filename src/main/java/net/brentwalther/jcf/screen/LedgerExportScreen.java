@@ -12,9 +12,8 @@ import net.brentwalther.jcf.util.Formatter;
 import org.jline.reader.impl.LineReaderImpl;
 import org.jline.terminal.Terminal;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,7 +24,7 @@ public class LedgerExportScreen {
 
   private static final String ACCOUNT_DELIMITER = ":";
 
-  public static void start(Model currentModel, File ledgerFile) {
+  public static void start(Model currentModel, OutputStream outputStream) {
     // First produce a map of accounts to names like Assets:Investments:VTSAX
     Map<String, String> accountIdToFullString = new HashMap<>();
     for (Account account : currentModel.accountsById.values()) {
@@ -39,7 +38,8 @@ public class LedgerExportScreen {
         String originalId = account.id;
         List<String> names = new ArrayList<>(4);
         names.add(account.name);
-        while (!account.parentId.isEmpty() && currentModel.accountsById.containsKey(account.parentId)) {
+        while (!account.parentId.isEmpty()
+            && currentModel.accountsById.containsKey(account.parentId)) {
           account = currentModel.accountsById.get(account.parentId);
           names.add(account.name);
         }
@@ -52,7 +52,7 @@ public class LedgerExportScreen {
         accountIdToFullString.values().stream().mapToInt(String::length).max().orElse(0);
 
     Terminal terminal = TerminalProvider.get();
-    try (PrintWriter writer = new PrintWriter(new FileOutputStream(ledgerFile))) {
+    try (PrintWriter writer = new PrintWriter(outputStream)) {
       List<Transaction> transactions = new ArrayList<>(currentModel.transactionsById.values());
       transactions.sort(Ordering.natural().onResultOf(t -> t.postDate));
       for (Transaction transaction : transactions) {
@@ -70,13 +70,9 @@ public class LedgerExportScreen {
         }
         writer.println();
       }
-    } catch (IOException e) {
-      terminal.writer().println("Exception occurred while trying to write ledger file: " + e);
     }
     try {
-      new LineReaderImpl(terminal)
-          .readLine(
-              "Export to " + ledgerFile.getName() + " complete. Press any key to continue...");
+      new LineReaderImpl(terminal).readLine("Export complete. Press any key to continue...");
     } catch (IOException e) {
       /* do nothing. */
     }

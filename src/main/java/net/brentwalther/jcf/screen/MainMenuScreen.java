@@ -14,6 +14,8 @@ import net.brentwalther.jcf.prompt.PromptEvaluator;
 import org.jline.terminal.Terminal;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 
 public class MainMenuScreen {
 
@@ -82,7 +84,12 @@ public class MainMenuScreen {
         case LEDGER_EXPORT:
           File ledgerFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
           if (ledgerFile != null && ledgerFile.exists()) {
-            LedgerExportScreen.start(ModelManager.getCurrentModel(), ledgerFile);
+            try {
+              LedgerExportScreen.start(
+                  ModelManager.getCurrentModel(), new FileOutputStream(ledgerFile));
+            } catch (FileNotFoundException e) {
+              // Print an error.
+            }
           }
         case EXIT:
           return;

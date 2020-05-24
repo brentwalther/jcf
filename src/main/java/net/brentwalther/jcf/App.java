@@ -11,7 +11,6 @@ import org.apache.commons.cli.Options;
 import org.jline.terminal.Terminal;
 
 import java.io.File;
-import java.io.IOException;
 
 public class App {
 

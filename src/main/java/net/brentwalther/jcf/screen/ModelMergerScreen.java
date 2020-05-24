@@ -3,7 +3,6 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimaps;
-import net.brentwalther.jcf.App;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
