@@ -10,26 +10,33 @@ http_archive(
         "https://github.com/bazelbuild/rules_proto/archive/97d8af4dc474595af3900dd85cb3a29ad28cc313.tar.gz",
     ],
 )
+
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+
 rules_proto_dependencies()
+
 rules_proto_toolchains()
 
 # Download and apply the maven rules with all the artifacts we want.
 RULES_JVM_EXTERNAL_TAG = "3.0"
+
 RULES_JVM_EXTERNAL_SHA = "62133c125bf4109dfd9d2af64830208356ce4ef8b165a6ef15bbff7460b35c3a"
+
 http_archive(
     name = "rules_jvm_external",
-    strip_prefix = "rules_jvm_external-%s" % RULES_JVM_EXTERNAL_TAG,
     sha256 = RULES_JVM_EXTERNAL_SHA,
+    strip_prefix = "rules_jvm_external-%s" % RULES_JVM_EXTERNAL_TAG,
     url = "https://github.com/bazelbuild/rules_jvm_external/archive/%s.zip" % RULES_JVM_EXTERNAL_TAG,
 )
+
 load("@rules_jvm_external//:defs.bzl", "maven_install")
+
 maven_install(
     artifacts = [
+        "com.beust:jcommander:1.78",
         "com.google.guava:guava:28.2-jre",
         "com.google.protobuf:protobuf-java:3.0.0",
         "com.webcohesion.ofx4j:ofx4j:1.7",
-        "commons-cli:commons-cli:1.4",
         "org.jline:jline:3.1.3",
         "org.xerial:sqlite-jdbc:3.7.2",
 

@@ -13,6 +13,7 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
   private final Integer defaultOption;
   private final ImmutableSet<String> autoCompleteOptions;
   private final ImmutableList<String> prefaces;
+
   private OptionsPrompt(
       ImmutableList<String> options,
       Integer defaultOption,

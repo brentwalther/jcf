@@ -14,7 +14,6 @@ java_binary(
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_webcohesion_ofx4j_ofx4j",
-        "@maven//:commons_cli_commons_cli",
         "@maven//:org_jline_jline",
         "@maven//:org_xerial_sqlite_jdbc",
         # "@maven//:junit_junit"
@@ -30,11 +29,11 @@ java_binary(
     main_class = "net.brentwalther.jcf.CsvMatcher",
     deps = [
         ":jcf_model_java_proto",
+        "@maven//:com_beust_jcommander",
         "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
         "@maven//:com_webcohesion_ofx4j_ofx4j",
-        "@maven//:commons_cli_commons_cli",
         "@maven//:org_jline_jline",
         "@maven//:org_xerial_sqlite_jdbc",
         # "@maven//:junit_junit"

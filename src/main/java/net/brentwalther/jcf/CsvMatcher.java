@@ -1,5 +1,7 @@
 package net.brentwalther.jcf;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -17,12 +19,12 @@ import net.brentwalther.jcf.screen.SplitMatcherScreen;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,52 +33,88 @@ import java.util.Set;
 
 public class CsvMatcher {
 
+  @Parameter(
+      names = {"--help", "-h"},
+      help = true)
+  private boolean help;
+
+  @Parameter(names = {"--mapping_file"})
+  private String mappingFileName;
+
+  @Parameter(names = {"--transaction_csv"})
+  private String csvFileName;
+
+  @Parameter(names = {"--csv_field_ordering"})
+  private String csvFieldOrdering;
+
+  @Parameter(names = {"--date_format"})
+  private String dateFormat;
+
+  @Parameter(names = {"--output"})
+  private String outputFileName;
+
   private static final ImmutableSet<CsvField> CSV_FIELDS = ImmutableSet.copyOf(CsvField.values());
   private static final Splitter CSV_SPLITTER = Splitter.on(',');
   private static final Splitter TSV_SPLITTER = Splitter.on('\t');
 
   public static void main(String[] args) throws Exception {
+    CsvMatcher csvMatcher = new CsvMatcher();
+    JCommander.newBuilder().addObject(csvMatcher).build().parse(args);
+    csvMatcher.run();
+  }
 
-    if (args.length != 4) {
-      System.err.println("Invalid invocation.);");
-      System.err.println("Must provide args: mappingFile csvFile csv,field,ordering ledgerFile");
-      System.err.println("Saw: " + Arrays.asList(args));
-      System.exit(1);
-    }
-
-    File mappingFile = new File(args[0]);
+  public void run() throws Exception {
+    File mappingFile = new File(mappingFileName);
     if (!mappingFile.exists() || !mappingFile.isFile()) {
-      System.err.println("The first arg (" + args[0] + ") does not refer to a file that exists.");
+      System.err.println(
+          "The passed in mapping file name ("
+              + mappingFileName
+              + ") does not refer to a file that exists.");
       System.exit(1);
     }
-    File csvFile = new File(args[1]);
+    File csvFile = new File(csvFileName);
     if (!csvFile.exists() || !csvFile.isFile()) {
-      System.err.println("The second arg (" + args[1] + ") does not refer to a file that exists.");
+      System.err.println(
+          "The passed in transaction CSV file ("
+              + csvFileName
+              + ") does not refer to a file that exists.");
       System.exit(1);
     }
-    List<String> fieldPositions = CSV_SPLITTER.splitToList(args[2]);
+    List<String> fieldPositions = CSV_SPLITTER.splitToList(csvFieldOrdering);
     Set<String> csvFieldNames =
         ImmutableSet.copyOf(Iterables.transform(CSV_FIELDS, (field) -> field.stringVal));
     if (Iterables.any(
         fieldPositions, field -> !field.isEmpty() && !csvFieldNames.contains(field))) {
       System.err.println(
-          "The third arg ("
-              + args[2]
+          "The field ordering ("
+              + csvFieldOrdering
               + ") must be a csv string only containing fields: "
               + csvFieldNames);
       System.exit(1);
     }
 
-    String dateFormat = args[3];
+    File ledgerFile = new File(outputFileName);
+    if (ledgerFile.exists()) {
+      System.err.println("The passed in output file (" + outputFileName + ") already exists!");
+      System.exit(1);
+    }
 
     Model mappingsModel = extractModelFrom(mappingFile);
     SplitMatcher matcher = new SplitMatcher(mappingsModel);
     Model model =
         createModelFromCsv(
-            csvFile, Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)), dateFormat);
+            csvFile,
+            Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)),
+            dateFormat);
     SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
+
+    if (!ledgerFile.createNewFile()) {
+      System.err.println("Failed to create ledger output file.");
+      System.exit(1);
+    }
     LedgerExportScreen.start(
-        Iterables.getOnlyElement(ModelManager.getUnmergedModels()), System.out);
+        Iterables.getOnlyElement(ModelManager.getUnmergedModels()),
+        new FileOutputStream(ledgerFile));
   }
 
   private static Model extractModelFrom(File mappingFile) throws FileNotFoundException {
