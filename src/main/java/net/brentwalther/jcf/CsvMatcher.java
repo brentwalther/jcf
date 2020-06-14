@@ -38,19 +38,32 @@ public class CsvMatcher {
       help = true)
   private boolean help;
 
-  @Parameter(names = {"--mapping_file"})
+  @Parameter(
+      names = {"--mapping_file"},
+      required = true)
   private String mappingFileName;
 
-  @Parameter(names = {"--transaction_csv"})
+  @Parameter(
+      names = {"--transaction_csv"},
+      required = true)
   private String csvFileName;
 
-  @Parameter(names = {"--csv_field_ordering"})
+  @Parameter(
+      names = {"--csv_field_ordering"},
+      required = true)
   private String csvFieldOrdering;
 
-  @Parameter(names = {"--date_format"})
+  @Parameter(
+      names = {"--date_format"},
+      required = true)
   private String dateFormat;
 
-  @Parameter(names = {"--output"})
+  @Parameter(names = {"--account-name"})
+  private String accountName;
+
+  @Parameter(
+      names = {"--output"},
+      required = true)
   private String outputFileName;
 
   private static final ImmutableSet<CsvField> CSV_FIELDS = ImmutableSet.copyOf(CsvField.values());
@@ -101,11 +114,16 @@ public class CsvMatcher {
 
     Model mappingsModel = extractModelFrom(mappingFile);
     SplitMatcher matcher = new SplitMatcher(mappingsModel);
+    Account fromAccount =
+        accountName == null || accountName.isEmpty()
+            ? dummyAccount("An account")
+            : dummyAccount(accountName);
     Model model =
         createModelFromCsv(
             csvFile,
             Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)),
-            dateFormat);
+            dateFormat,
+            fromAccount);
     SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
 
     if (!ledgerFile.createNewFile()) {
@@ -115,6 +133,10 @@ public class CsvMatcher {
     LedgerExportScreen.start(
         Iterables.getOnlyElement(ModelManager.getUnmergedModels()),
         new FileOutputStream(ledgerFile));
+  }
+
+  private static Account dummyAccount(String accountName) {
+    return new Account(accountName, accountName, Account.Type.ASSET, "");
   }
 
   private static Model extractModelFrom(File mappingFile) throws FileNotFoundException {
@@ -146,7 +168,10 @@ public class CsvMatcher {
   }
 
   private static Model createModelFromCsv(
-      File csvFile, ImmutableMap<CsvField, Integer> csvFieldPositions, String dateFormat)
+      File csvFile,
+      ImmutableMap<CsvField, Integer> csvFieldPositions,
+      String dateFormat,
+      Account fromAccount)
       throws FileNotFoundException {
     int maxFieldPosition = csvFieldPositions.values().stream().max(Integer::compareTo).get();
     Scanner scanner = new Scanner(csvFile);
@@ -165,7 +190,6 @@ public class CsvMatcher {
               + " fields. Exiting,");
       System.exit(1);
     }
-    Account placeholderAccount = new Account("placeholder", "An Account", Account.Type.ASSET, "");
     List<Transaction> transactions = new ArrayList<>();
     List<Split> splits = new ArrayList<>();
     int id = 0;
@@ -204,9 +228,9 @@ public class CsvMatcher {
       }
       String transactionId = String.valueOf(id++);
       transactions.add(new Transaction(Transaction.DataSource.CSV, transactionId, date, desc));
-      splits.add(new Split(placeholderAccount.id, transactionId, valueNum, valueDenom));
+      splits.add(new Split(fromAccount.id, transactionId, valueNum, valueDenom));
     }
-    return new Model(ImmutableList.of(placeholderAccount), transactions, splits);
+    return new Model(ImmutableList.of(fromAccount), transactions, splits);
   }
 
   private enum CsvField {
