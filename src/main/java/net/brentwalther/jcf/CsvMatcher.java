@@ -113,7 +113,7 @@ public class CsvMatcher {
     }
 
     Model mappingsModel = extractModelFrom(mappingFile);
-    SplitMatcher matcher = new SplitMatcher(mappingsModel);
+    SplitMatcher matcher = SplitMatcher.create(mappingsModel);
     Account fromAccount =
         accountName == null || accountName.isEmpty()
             ? dummyAccount("An account")
