@@ -101,6 +101,9 @@ public class SplitMatcherScreen {
             break;
         }
       }
+      if (!chosenAccount.equals(UNSELECTED_ACCOUNT)) {
+        splitMatcher.link(chosenAccount, transactionDescription);
+      }
       matchedAccounts.add(chosenAccount);
       matches.add(
           new Split(
