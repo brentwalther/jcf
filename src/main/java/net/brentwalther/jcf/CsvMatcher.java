@@ -14,6 +14,7 @@ import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
+import net.brentwalther.jcf.screen.FieldPositionChooser;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
 
@@ -48,9 +49,7 @@ public class CsvMatcher {
       required = true)
   private String csvFileName;
 
-  @Parameter(
-      names = {"--csv_field_ordering"},
-      required = true)
+  @Parameter(names = {"--csv_field_ordering"})
   private String csvFieldOrdering;
 
   @Parameter(
@@ -93,22 +92,38 @@ public class CsvMatcher {
               + ") does not refer to a file that exists.");
       System.exit(1);
     }
-    List<String> fieldPositions = CSV_SPLITTER.splitToList(csvFieldOrdering);
-    Set<String> csvFieldNames =
-        ImmutableSet.copyOf(Iterables.transform(CSV_FIELDS, (field) -> field.stringVal));
-    if (Iterables.any(
-        fieldPositions, field -> !field.isEmpty() && !csvFieldNames.contains(field))) {
-      System.err.println(
-          "The field ordering ("
-              + csvFieldOrdering
-              + ") must be a csv string only containing fields: "
-              + csvFieldNames);
-      System.exit(1);
+    ImmutableList.Builder<String> extractedFieldNames = ImmutableList.builder();
+    if (csvFieldOrdering != null && !csvFieldOrdering.isEmpty()) {
+      extractedFieldNames.addAll(CSV_SPLITTER.splitToList(csvFieldOrdering));
+      Set<String> csvFieldNames =
+          ImmutableSet.copyOf(Iterables.transform(CSV_FIELDS, (field) -> field.stringVal));
+      if (Iterables.any(
+          extractedFieldNames.build(),
+          field -> !field.isEmpty() && !csvFieldNames.contains(field))) {
+        System.err.println(
+            "The field ordering ("
+                + csvFieldOrdering
+                + ") must be a csv string only containing fields: "
+                + csvFieldNames);
+        System.exit(1);
+      }
     }
+    final ImmutableList<String> extractedFieldPositions = extractedFieldNames.build();
 
     File ledgerFile = new File(outputFileName);
     if (ledgerFile.exists()) {
       System.err.println("The passed in output file (" + outputFileName + ") already exists!");
+      System.exit(1);
+    }
+
+    ImmutableMap<CsvField, Integer> csvFieldPositions =
+        extractedFieldPositions.isEmpty()
+            ? FieldPositionChooser.getPositionsFor(getFirstLineOf(csvFile))
+            : Maps.toMap(CSV_FIELDS, (field) -> extractedFieldPositions.indexOf(field.stringVal));
+
+    if (csvFieldPositions.isEmpty()) {
+      System.err.println(
+          "Unable to read CSV because there is no field mapping. Please either complete the mapping wizard or pass --csv_field_ordering");
       System.exit(1);
     }
 
@@ -118,12 +133,7 @@ public class CsvMatcher {
         accountName == null || accountName.isEmpty()
             ? dummyAccount("An account")
             : dummyAccount(accountName);
-    Model model =
-        createModelFromCsv(
-            csvFile,
-            Maps.toMap(CSV_FIELDS, (field) -> fieldPositions.indexOf(field.stringVal)),
-            dateFormat,
-            fromAccount);
+    Model model = createModelFromCsv(csvFile, csvFieldPositions, dateFormat, fromAccount);
     SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
 
     if (!ledgerFile.createNewFile()) {
@@ -133,6 +143,13 @@ public class CsvMatcher {
     LedgerExportScreen.start(
         Iterables.getOnlyElement(ModelManager.getUnmergedModels()),
         new FileOutputStream(ledgerFile));
+  }
+
+  private String getFirstLineOf(File csvFile) throws FileNotFoundException {
+    if (!csvFile.exists()) {
+      throw new FileNotFoundException("Can't get first line of file: " + csvFile.getAbsolutePath());
+    }
+    return new Scanner(csvFile).nextLine();
   }
 
   private static Account dummyAccount(String accountName) {
@@ -233,7 +250,7 @@ public class CsvMatcher {
     return new Model(ImmutableList.of(fromAccount), transactions, splits);
   }
 
-  private enum CsvField {
+  public enum CsvField {
     DATE("date"),
     DESCRIPTION("desc"),
     DEBIT("debit"),

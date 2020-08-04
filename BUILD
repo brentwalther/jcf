@@ -10,6 +10,7 @@ java_binary(
     main_class = "net.brentwalther.jcf.App",
     deps = [
         ":jcf_model_java_proto",
+        "@maven//:com_beust_jcommander",
         "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
