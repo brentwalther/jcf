@@ -57,7 +57,7 @@ public class CsvMatcher {
       required = true)
   private String dateFormat;
 
-  @Parameter(names = {"--account-name"})
+  @Parameter(names = {"--account_name"})
   private String accountName;
 
   @Parameter(
