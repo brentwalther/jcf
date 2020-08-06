@@ -2,7 +2,10 @@ package net.brentwalther.jcf;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.google.common.base.Predicates;
 import com.google.common.base.Splitter;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -14,6 +17,7 @@ import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
+import net.brentwalther.jcf.screen.DateTimeFormatChooser;
 import net.brentwalther.jcf.screen.FieldPositionChooser;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
@@ -27,6 +31,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -52,9 +57,7 @@ public class CsvMatcher {
   @Parameter(names = {"--csv_field_ordering"})
   private String csvFieldOrdering;
 
-  @Parameter(
-      names = {"--date_format"},
-      required = true)
+  @Parameter(names = {"--date_format"})
   private String dateFormat;
 
   @Parameter(names = {"--account_name"})
@@ -127,13 +130,51 @@ public class CsvMatcher {
       System.exit(1);
     }
 
+    DateTimeFormatter dateTimeFormatter;
+    // Open the CSV file and skip the first line which should be the column names.
+    Scanner csvFileScanner = new Scanner(csvFile);
+    if (dateFormat == null || dateFormat.isEmpty()) {
+      Iterator<String> lineByLineIterator =
+          new AbstractIterator<String>() {
+            @Override
+            protected String computeNext() {
+              return csvFileScanner.hasNextLine() ? csvFileScanner.nextLine() : endOfData();
+            }
+          };
+      dateTimeFormatter =
+          DateTimeFormatChooser.obtainFormatForExamples(
+              FluentIterable.from(() -> lineByLineIterator)
+                  .skip(1)
+                  .limit(10)
+                  .transform(
+                      (line) -> {
+                        List<String> lineData =
+                            Splitter.on(',').trimResults().omitEmptyStrings().splitToList(line);
+                        if (!csvFieldPositions.containsKey(CsvField.DATE)
+                            || csvFieldPositions.get(CsvField.DATE) >= lineData.size()) {
+                          return null;
+                        } else {
+                          return lineData.get(csvFieldPositions.get(CsvField.DATE));
+                        }
+                      })
+                  .filter(Predicates.notNull()));
+    } else {
+      dateTimeFormatter = DateTimeFormatter.ofPattern(dateFormat);
+    }
+
+    if (dateTimeFormatter == null) {
+      System.err.println(
+          "Was not able to establish a date format for the dates in file: " + csvFileName);
+      System.exit(1);
+    }
+
     Model mappingsModel = extractModelFrom(mappingFile);
     SplitMatcher matcher = SplitMatcher.create(mappingsModel);
     Account fromAccount =
         accountName == null || accountName.isEmpty()
             ? dummyAccount("An account")
             : dummyAccount(accountName);
-    Model model = createModelFromCsv(csvFile, csvFieldPositions, dateFormat, fromAccount);
+    Model model = createModelFromCsv(csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
     SplitMatcherScreen.start(matcher, model, mappingsModel.accountsById.values());
 
     if (!ledgerFile.createNewFile()) {
@@ -187,7 +228,7 @@ public class CsvMatcher {
   private static Model createModelFromCsv(
       File csvFile,
       ImmutableMap<CsvField, Integer> csvFieldPositions,
-      String dateFormat,
+      DateTimeFormatter dateTimeFormatter,
       Account fromAccount)
       throws FileNotFoundException {
     int maxFieldPosition = csvFieldPositions.values().stream().max(Integer::compareTo).get();
@@ -224,9 +265,7 @@ public class CsvMatcher {
         continue;
       }
       Instant date =
-          LocalDate.from(
-                  DateTimeFormatter.ofPattern(dateFormat)
-                      .parse(pieces.get(csvFieldPositions.get(CsvField.DATE))))
+          LocalDate.from(dateTimeFormatter.parse(pieces.get(csvFieldPositions.get(CsvField.DATE))))
               .atStartOfDay(ZoneId.systemDefault())
               .toInstant();
       String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
