@@ -50,7 +50,7 @@ public class Transaction {
   public enum DataSource {
     GNUCASH_DB,
     OFX,
-    EXPENSE_MAPPING_FILE,
+    TRANSACTION_DESC_ACCOUNT_NAME_MAPPING_FILE,
     CSV,
     JCF
   }

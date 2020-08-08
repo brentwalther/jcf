@@ -34,6 +34,8 @@ load("@rules_jvm_external//:defs.bzl", "maven_install")
 maven_install(
     artifacts = [
         "com.beust:jcommander:1.78",
+        "com.google.flogger:flogger:0.5.1",
+        "com.google.flogger:flogger-system-backend:0.5.1",
         "com.google.guava:guava:28.2-jre",
         "com.google.protobuf:protobuf-java:3.0.0",
         "com.webcohesion.ofx4j:ofx4j:1.7",
