@@ -45,7 +45,7 @@ public class CsvMatcher {
   private boolean help = false;
 
   @Parameter(
-      names = {"--mapping_file"},
+      names = {"--tsv_desc_account_mapping"},
       required = true)
   private String mappingFileName = EMPTY;
 
