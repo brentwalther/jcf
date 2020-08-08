@@ -2,14 +2,15 @@ package net.brentwalther.jcf;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.google.common.base.Joiner;
 import com.google.common.base.Predicates;
 import com.google.common.base.Splitter;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
@@ -35,40 +36,42 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.Set;
 
 public class CsvMatcher {
 
   @Parameter(
       names = {"--help", "-h"},
       help = true)
-  private boolean help;
+  private boolean help = false;
 
   @Parameter(
       names = {"--mapping_file"},
       required = true)
-  private String mappingFileName;
+  private String mappingFileName = EMPTY;
 
   @Parameter(
       names = {"--transaction_csv"},
       required = true)
-  private String csvFileName;
+  private String csvFileName = EMPTY;
 
   @Parameter(names = {"--csv_field_ordering"})
-  private String csvFieldOrdering;
+  private String csvFieldOrdering = EMPTY;
 
   @Parameter(names = {"--date_format"})
-  private String dateFormat;
+  private String dateFormat = EMPTY;
 
   @Parameter(names = {"--account_name"})
-  private String accountName;
+  private String accountName = EMPTY;
 
   @Parameter(
       names = {"--output"},
       required = true)
-  private String outputFileName;
+  private String outputFileName = EMPTY;
 
-  private static final ImmutableSet<CsvField> CSV_FIELDS = ImmutableSet.copyOf(CsvField.values());
+  private static final String EMPTY = "";
+  private static final String NEW_LINE = "\n";
+  private static final ImmutableList<CsvField> CSV_FIELDS = ImmutableList.copyOf(CsvField.values());
+  private static final ImmutableList<String> CSV_FIELD_NAMES = ImmutableList.copyOf(Lists.transform(CSV_FIELDS, (field) -> field.stringVal));
   private static final Splitter CSV_SPLITTER = Splitter.on(',');
   private static final Splitter TSV_SPLITTER = Splitter.on('\t');
 
@@ -82,9 +85,9 @@ public class CsvMatcher {
     File mappingFile = new File(mappingFileName);
     if (!mappingFile.exists() || !mappingFile.isFile()) {
       System.err.println(
-          "The passed in mapping file name ("
+          "The passed in mapping file name \""
               + mappingFileName
-              + ") does not refer to a file that exists.");
+              + "\" does not refer to a file that exists.");
       System.exit(1);
     }
     File csvFile = new File(csvFileName);
@@ -95,23 +98,26 @@ public class CsvMatcher {
               + ") does not refer to a file that exists.");
       System.exit(1);
     }
-    ImmutableList.Builder<String> extractedFieldNames = ImmutableList.builder();
-    if (csvFieldOrdering != null && !csvFieldOrdering.isEmpty()) {
-      extractedFieldNames.addAll(CSV_SPLITTER.splitToList(csvFieldOrdering));
-      Set<String> csvFieldNames =
-          ImmutableSet.copyOf(Iterables.transform(CSV_FIELDS, (field) -> field.stringVal));
+    ImmutableList<String> extractedFieldNames = ImmutableList.of();
+    if (!csvFieldOrdering.isEmpty()) {
+      List<String> inputFieldNames = CSV_SPLITTER.splitToList(csvFieldOrdering);
+      // Ensure all fields are properly defined.
       if (Iterables.any(
-          extractedFieldNames.build(),
-          field -> !field.isEmpty() && !csvFieldNames.contains(field))) {
+          inputFieldNames,
+          field -> !field.isEmpty() && !CSV_FIELD_NAMES.contains(field))) {
         System.err.println(
-            "The field ordering ("
-                + csvFieldOrdering
-                + ") must be a csv string only containing fields: "
-                + csvFieldNames);
+            new StringBuilder("")
+            .append(
+            "The CSV column (field) ordering is not properly defined:" + NEW_LINE)
+               .append(csvFieldOrdering + NEW_LINE)
+                .append("It should be a csv string only containing fields: " + NEW_LINE)
+                .append(Joiner.on(',').join(CSV_FIELD_NAMES) + NEW_LINE)
+            .toString());
         System.exit(1);
       }
+      extractedFieldNames = ImmutableList.copyOf(inputFieldNames);
     }
-    final ImmutableList<String> extractedFieldPositions = extractedFieldNames.build();
+    final ImmutableList<String> finalExtractedFieldNames = extractedFieldNames;
 
     File ledgerFile = new File(outputFileName);
     if (ledgerFile.exists()) {
@@ -120,9 +126,9 @@ public class CsvMatcher {
     }
 
     ImmutableMap<CsvField, Integer> csvFieldPositions =
-        extractedFieldPositions.isEmpty()
+        extractedFieldNames.isEmpty()
             ? FieldPositionChooser.getPositionsFor(getFirstLineOf(csvFile))
-            : Maps.toMap(CSV_FIELDS, (field) -> extractedFieldPositions.indexOf(field.stringVal));
+            : Maps.toMap(CSV_FIELDS, (field) -> finalExtractedFieldNames.indexOf(field.stringVal));
 
     if (csvFieldPositions.isEmpty()) {
       System.err.println(
@@ -131,9 +137,8 @@ public class CsvMatcher {
     }
 
     DateTimeFormatter dateTimeFormatter;
-    // Open the CSV file and skip the first line which should be the column names.
-    Scanner csvFileScanner = new Scanner(csvFile);
-    if (dateFormat == null || dateFormat.isEmpty()) {
+    if (dateFormat.isEmpty()) {
+      Scanner csvFileScanner = new Scanner(csvFile);
       Iterator<String> lineByLineIterator =
           new AbstractIterator<String>() {
             @Override

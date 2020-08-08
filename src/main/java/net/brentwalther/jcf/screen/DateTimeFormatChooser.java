@@ -41,6 +41,8 @@ public class DateTimeFormatChooser {
                     "z       time-zone name              zone-name         Pacific Standard Time; PST",
                     "O       localized zone-offset       offset-O          GMT+8; GMT+08:00; UTC-08:00;",
                     "",
+                    "Examples: y/M/d MM-d-y",
+                    "",
                     "or, enter Q to (Q)uit"))
             .withTransformer((input) -> Optional.of(input))
             .build();
