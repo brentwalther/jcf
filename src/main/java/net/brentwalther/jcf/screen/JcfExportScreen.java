@@ -26,7 +26,7 @@ public class JcfExportScreen {
                 .setId(account.id)
                 .setName(account.name)
                 .setParentId(account.parentId)
-                .setType(convertAccountType(account.type)));
+                .setType(account.type));
       }
       for (Transaction transaction : model.transactionsById.values()) {
         jcfModel.addTransaction(
@@ -53,23 +53,5 @@ public class JcfExportScreen {
                   "  to file: " + file.getAbsolutePath(),
                   "  due to exception: " + e)));
     }
-  }
-
-  private static JcfModel.Account.Type convertAccountType(Account.Type type) {
-    switch (type) {
-      case ROOT:
-        return JcfModel.Account.Type.ROOT;
-      case ASSET:
-        return JcfModel.Account.Type.ASSET;
-      case EQUITY:
-        return JcfModel.Account.Type.EQUITY;
-      case LIABILITY:
-        return JcfModel.Account.Type.LIABILITY;
-      case INCOME:
-        return JcfModel.Account.Type.INCOME;
-      case EXPENSE:
-        return JcfModel.Account.Type.EXPENSE;
-    }
-    return JcfModel.Account.Type.UNKNOWN_TYPE;
   }
 }

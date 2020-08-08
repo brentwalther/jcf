@@ -14,6 +14,7 @@ import com.google.common.collect.Multisets;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -123,7 +124,8 @@ class ModelReviewScreen {
                 csvFile,
                 /* filters= */ ImmutableList.of(
                     exportItem -> exportItem.account().equals(mostFrequentlyOccuringAccount),
-                    exportItem -> !exportItem.account().type.equals(Account.Type.EXPENSE)));
+                    exportItem ->
+                        !exportItem.account().type.equals(JcfModel.Account.Type.EXPENSE)));
           }
         }
         break;

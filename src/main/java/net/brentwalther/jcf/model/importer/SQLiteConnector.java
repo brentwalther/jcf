@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -131,19 +132,19 @@ public class SQLiteConnector {
     }
   }
 
-  private Account.Type toType(String dbType) {
+  private JcfModel.Account.Type toType(String dbType) {
     if (dbType.equals("INCOME")) {
-      return Account.Type.INCOME;
+      return JcfModel.Account.Type.INCOME;
     } else if (dbType.equals("EXPENSE")) {
-      return Account.Type.EXPENSE;
+      return JcfModel.Account.Type.EXPENSE;
     } else if (dbType.equals("ASSET") || dbType.equals("BANK") || dbType.equals("CASH")) {
-      return Account.Type.ASSET;
+      return JcfModel.Account.Type.ASSET;
     } else if (dbType.equals("LIABILITY") || dbType.equals("CREDIT")) {
-      return Account.Type.LIABILITY;
+      return JcfModel.Account.Type.LIABILITY;
     } else if (dbType.equals("EQUITY")) {
-      return Account.Type.EQUITY;
+      return JcfModel.Account.Type.EQUITY;
     } else if (dbType.equals("ROOT")) {
-      return Account.Type.ROOT;
+      return JcfModel.Account.Type.ROOT;
     } else {
       throw new RuntimeException("Unknown account type: " + dbType);
     }

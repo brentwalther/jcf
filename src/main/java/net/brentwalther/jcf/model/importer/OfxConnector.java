@@ -17,6 +17,7 @@ import com.webcohesion.ofx4j.io.OFXReader;
 import com.webcohesion.ofx4j.io.OFXSyntaxException;
 import com.webcohesion.ofx4j.io.nanoxml.NanoXMLOFXReader;
 import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -85,7 +86,7 @@ public class OfxConnector {
                   new Account(
                       creditCardAccountDetails.getAccountNumber(),
                       creditCardAccountDetails.getAccountNumber(),
-                      Account.Type.LIABILITY,
+                      JcfModel.Account.Type.LIABILITY,
                       null);
               accounts.put(account.id, account);
               for (com.webcohesion.ofx4j.domain.data.common.Transaction transaction :
@@ -117,7 +118,7 @@ public class OfxConnector {
                   new Account(
                       details.getAccountNumber(),
                       details.getAccountKey(),
-                      Account.Type.ASSET,
+                      JcfModel.Account.Type.ASSET,
                       null);
               accounts.put(account.id, account);
               for (com.webcohesion.ofx4j.domain.data.common.Transaction transaction :

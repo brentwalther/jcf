@@ -9,6 +9,7 @@ import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -26,7 +27,7 @@ import java.util.List;
 public class SplitMatcherScreen {
 
   private static final Account UNSELECTED_ACCOUNT =
-      new Account("UNMATCHED", "Imbalance (UNKNOWN)", Account.Type.EXPENSE, "");
+      new Account("UNMATCHED", "Imbalance", JcfModel.Account.Type.UNKNOWN_TYPE, "");
 
   public static void start(
       SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {

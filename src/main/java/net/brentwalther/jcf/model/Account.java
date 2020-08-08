@@ -1,6 +1,7 @@
 package net.brentwalther.jcf.model;
 
 import com.google.common.base.Objects;
+import net.brentwalther.jcf.model.JcfModel.Account.Type;
 
 /** An account that can be assigned to transaction splits. */
 public class Account {
@@ -40,15 +41,5 @@ public class Account {
   @Override
   public String toString() {
     return name + "(t: " + type + ", id: " + id + ")";
-  }
-
-  /** The type of the account. */
-  public enum Type {
-    EXPENSE,
-    ASSET,
-    LIABILITY,
-    EQUITY,
-    ROOT,
-    INCOME
   }
 }
