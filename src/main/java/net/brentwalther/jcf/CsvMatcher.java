@@ -26,14 +26,13 @@ import net.brentwalther.jcf.screen.DateTimeFormatChooser;
 import net.brentwalther.jcf.screen.FieldPositionChooser;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
+import net.brentwalther.jcf.util.Formatter;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +50,7 @@ public class CsvMatcher {
       required = true)
   private String descToAccountTsvFileName = EMPTY;
 
-  @Parameter(
-      names = {"--ledger_account_listing"})
+  @Parameter(names = {"--ledger_account_listing"})
   private String ledgerAccountListingFileName = EMPTY;
 
   @Parameter(
@@ -288,9 +286,8 @@ public class CsvMatcher {
         continue;
       }
       Instant date =
-          LocalDate.from(dateTimeFormatter.parse(pieces.get(csvFieldPositions.get(CsvField.DATE))))
-              .atStartOfDay(ZoneId.systemDefault())
-              .toInstant();
+          Formatter.parseDateFrom(
+              pieces.get(csvFieldPositions.get(CsvField.DATE)), dateTimeFormatter);
       String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
       int valueNum = 0;
       int valueDenom = 100;

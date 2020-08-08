@@ -7,9 +7,10 @@ import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.Prompt;
 import net.brentwalther.jcf.prompt.PromptBuilder;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
+import net.brentwalther.jcf.util.Formatter;
 
+import java.time.DateTimeException;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
 public class DateTimeFormatChooser {
@@ -57,8 +58,8 @@ public class DateTimeFormatChooser {
       boolean anyExampleUnparseable = false;
       for (String example : exampleData) {
         try {
-          formatter.parse(example);
-        } catch (DateTimeParseException e) {
+          Formatter.parseDateFrom(example, formatter);
+        } catch (DateTimeException e) {
           anyExampleUnparseable = true;
           PromptEvaluator.showAndGetResult(
               TerminalProvider.get(), NoticePrompt.withMessages(ImmutableList.of(e.toString())));

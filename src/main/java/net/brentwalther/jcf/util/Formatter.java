@@ -3,6 +3,7 @@ package net.brentwalther.jcf.util;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -51,5 +52,11 @@ public class Formatter {
         break;
     }
     return formatted.toString();
+  }
+
+  public static Instant parseDateFrom(String str, DateTimeFormatter dateTimeFormatter) {
+    return LocalDate.from(dateTimeFormatter.parse(str))
+        .atStartOfDay(ZoneId.systemDefault())
+        .toInstant();
   }
 }
