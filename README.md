@@ -1,5 +1,8 @@
 # jcf - Java Cash Flow
 
-A CLI program for converting and matching bank transaction data to a ledger.
+A CLI program for matching and converting bank transaction CSVs to `ledger-cli` compatible files.
 
-To run it, see `match.sh` or the `BUILD` file. You need bazel installed to build it. Not tested on Windows or Mac.
+This is part of an overall workflow for mantaining a personal finance ledger using `git` and this tool, as described in the walkthrough here: https://brentwalther.net/personal-finance-automation-with-ledger
+
+You need `bazel` installed to build and run it. To see an invocation example, check `match.sh`. It can also run as an application (TUI) but some features are unimplmeneted there; see `BUILD` file. Not tested on Windows or Mac.
+
