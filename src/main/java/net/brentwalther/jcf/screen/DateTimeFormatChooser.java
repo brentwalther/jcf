@@ -9,11 +9,14 @@ import net.brentwalther.jcf.prompt.PromptBuilder;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
 
+import javax.annotation.Nullable;
 import java.time.DateTimeException;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 public class DateTimeFormatChooser {
+
+  @Nullable
   public static DateTimeFormatter obtainFormatForExamples(Iterable<String> examples) {
     ImmutableList<String> exampleData = ImmutableList.copyOf(examples);
 
@@ -51,6 +54,8 @@ public class DateTimeFormatChooser {
     while (true) {
       String input = PromptEvaluator.showAndGetResult(TerminalProvider.get(), optionsPrompt);
       if (input == null || input.equalsIgnoreCase("q")) {
+        // The user wants to exit so exit. The caller upstream will need to decide whether it
+        // can continue with a null result.
         break;
       }
 

@@ -30,9 +30,10 @@ public class Formatter {
   }
 
   public static String ledgerCurrency(BigDecimal amount) {
-    boolean isNegative = amount.compareTo(BigDecimal.ZERO) < 0;
     StringBuilder formatted = new StringBuilder("$");
     if (amount.compareTo(BigDecimal.ZERO) < 0) {
+      // If the value is negative, append the negative sign and then flip the number to a positive
+      // to format the rest of it.
       amount = amount.negate();
       formatted.append("-");
     }

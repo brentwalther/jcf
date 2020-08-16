@@ -32,7 +32,6 @@ public class SplitMatcherScreen {
   public static void start(
       SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {
     ModelManager.removeModel(model);
-    Terminal terminal = TerminalProvider.get();
     Account account = Iterables.getOnlyElement(model.accountsById.values());
     int totalMatchesToMake = model.transactionsById.size();
     ImmutableSet.Builder<Account> matchedAccounts = ImmutableSet.<Account>builder().add(account);
@@ -79,7 +78,7 @@ public class SplitMatcherScreen {
 
       OptionsPrompt.Choice result =
           PromptEvaluator.showAndGetResult(
-              terminal,
+              TerminalProvider.get(),
               PromptDecorator.decorateWithStatusBars(
                   OptionsPrompt.builder(Lists.transform(options, (candidate) -> candidate.name))
                       .withDefaultOption(1)
@@ -92,7 +91,7 @@ public class SplitMatcherScreen {
       if (result != null) {
         switch (result.type) {
           case EMPTY:
-            // Chosen is already set to UNSELECTED.
+            // Nothing to do, the default chosenAccount is set to UNSELECTED.
             break;
           case NUMBERED_OPTION:
             chosenAccount = options.get(result.numberChoice);

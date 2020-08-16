@@ -162,13 +162,13 @@ public class CsvMatcher {
                   .limit(10)
                   .transform(
                       (line) -> {
-                        List<String> lineData =
+                        List<String> fields =
                             Splitter.on(',').trimResults().omitEmptyStrings().splitToList(line);
                         if (!csvFieldPositions.containsKey(CsvField.DATE)
-                            || csvFieldPositions.get(CsvField.DATE) >= lineData.size()) {
+                            || csvFieldPositions.get(CsvField.DATE) >= fields.size()) {
                           return null;
                         } else {
-                          return lineData.get(csvFieldPositions.get(CsvField.DATE));
+                          return fields.get(csvFieldPositions.get(CsvField.DATE));
                         }
                       })
                   .filter(Predicates.notNull()));
