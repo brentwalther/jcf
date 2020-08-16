@@ -5,7 +5,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -60,7 +60,7 @@ public class CsvExportScreen {
         printWriter.println(
             joiner.join(
                 quote(Formatter.date(exportItem.transaction().postDate)),
-                quote(exportItem.account().name),
+                quote(exportItem.account().getName()),
                 quote(Formatter.currency(exportItem.split().amount()))));
       }
       printWriter.flush();

@@ -3,7 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -53,7 +53,8 @@ public class OFXImportScreen {
                 AccountPickerPrompt.create(model.accountsById),
                 ImmutableList.of(
                     "Picking account for import: "
-                        + Iterables.getOnlyElement(importedOfxModel.accountsById.values()).name)));
+                        + Iterables.getOnlyElement(importedOfxModel.accountsById.values())
+                            .getName())));
 
     if (selectedAccount == null) {
       showErrorMessages(terminal, ImmutableList.of("No account selected. Aborting import."));
@@ -68,7 +69,7 @@ public class OFXImportScreen {
                 .map(
                     (split) ->
                         new Split(
-                            selectedAccount.id,
+                            selectedAccount.getId(),
                             split.transactionId,
                             split.valueNumerator,
                             split.valueDenominator))

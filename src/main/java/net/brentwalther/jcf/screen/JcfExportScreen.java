@@ -3,7 +3,6 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.CodedOutputStream;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
@@ -19,15 +18,8 @@ import java.io.IOException;
 public class JcfExportScreen {
   public static void start(Model model, File file) {
     try {
-      JcfModel.Model.Builder jcfModel = JcfModel.Model.newBuilder();
-      for (Account account : model.accountsById.values()) {
-        jcfModel.addAccount(
-            JcfModel.Account.newBuilder()
-                .setId(account.id)
-                .setName(account.name)
-                .setParentId(account.parentId)
-                .setType(account.type));
-      }
+      JcfModel.Model.Builder jcfModel =
+          JcfModel.Model.newBuilder().addAllAccount(model.accountsById.values());
       for (Transaction transaction : model.transactionsById.values()) {
         jcfModel.addTransaction(
             JcfModel.Transaction.newBuilder()

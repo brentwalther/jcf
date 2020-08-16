@@ -4,8 +4,8 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
-import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -50,12 +50,13 @@ public class SQLiteConnector {
       if (accountMatcher.matches(accountResults.getMetaData())) {
         for (ImmutableMap<Field, String> result : accountMatcher.getResults(accountResults)) {
           Account account =
-              new Account(
-                  result.get(Field.GUID),
-                  result.get(Field.NAME),
-                  toType(result.get(Field.TYPE)),
-                  result.get(Field.PARENT));
-          accountsById.put(result.get(Field.GUID), account);
+              Account.newBuilder()
+                  .setId(result.get(Field.GUID))
+                  .setName(result.get(Field.NAME))
+                  .setType(toType(result.get(Field.TYPE)))
+                  .setParentId(result.get(Field.PARENT))
+                  .build();
+          accountsById.put(account.getId(), account);
         }
       } else {
         System.err.println("Could not initialize accounts. Matcher did not match.");
@@ -75,7 +76,7 @@ public class SQLiteConnector {
           splitsByTransactionId.put(
               result.get(Field.TRANSACTION_GUID),
               new Split(
-                  accountsById.get(result.get(Field.ACCOUNT_GUID)).id,
+                  accountsById.get(result.get(Field.ACCOUNT_GUID)).getId(),
                   result.get(Field.TRANSACTION_GUID),
                   Integer.parseInt(result.get(Field.VALUE_NUMERATOR)),
                   Integer.parseInt(result.get(Field.VALUE_DENOMINATOR))));

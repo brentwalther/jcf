@@ -1,8 +1,7 @@
 package net.brentwalther.jcf.model.importer;
 
 import com.google.common.base.Splitter;
-import net.brentwalther.jcf.model.Account;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -36,7 +35,7 @@ public class TsvTransactionDescAccountMappingImporter {
 
       // TODO: Make ledger dump the account type to let us fill it in here.
       accountsById.putIfAbsent(
-          account, new Account(account, account, JcfModel.Account.Type.UNKNOWN_TYPE, ""));
+          account, Account.newBuilder().setId(account).setName(account).build());
       transactions.add(
           new Transaction(
               Transaction.DataSource.TRANSACTION_DESC_ACCOUNT_NAME_MAPPING_FILE,

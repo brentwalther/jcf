@@ -1,7 +1,6 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.base.Predicates;
-import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
@@ -10,7 +9,7 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
-import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import org.jline.terminal.Size;
 
 import java.util.ArrayDeque;
@@ -27,7 +26,7 @@ public class AccountPickerPrompt implements Prompt<Account> {
 
   private AccountPickerPrompt(Map<String, Account> accountsById) {
     this.accountsById = ImmutableMap.copyOf(accountsById);
-    this.childrenByParentId = Multimaps.index(accountsById.values(), (account) -> account.parentId);
+    this.childrenByParentId = Multimaps.index(accountsById.values(), Account::getParentId);
     Account root = findRoot(this.accountsById);
     if (root != null) {
       accountStack.addLast(root);
@@ -42,10 +41,10 @@ public class AccountPickerPrompt implements Prompt<Account> {
     Multiset<Account> accountParents =
         HashMultiset.create(
             FluentIterable.from(accountsById.values())
-                .transform((account) -> accountsById.get(account.parentId))
+                .transform((account) -> accountsById.get(account.getParentId()))
                 .filter(Predicates.notNull()));
     for (Account account : accountsById.values()) {
-      if (!Strings.isNullOrEmpty(account.parentId)) {
+      if (account.getParentId().isEmpty()) {
         continue;
       }
       if (accountParents.count(account) > 0) {
@@ -66,7 +65,8 @@ public class AccountPickerPrompt implements Prompt<Account> {
     if (THIS_ACCOUNT.equals(input)) {
       return Optional.of(accountStack.getLast());
     }
-    ImmutableList<Account> children = childrenByParentId.get(accountStack.getLast().id).asList();
+    ImmutableList<Account> children =
+        childrenByParentId.get(accountStack.getLast().getId()).asList();
     int numericOption = -1;
     try {
       numericOption = Integer.parseInt(input) - 1;
@@ -86,16 +86,20 @@ public class AccountPickerPrompt implements Prompt<Account> {
     }
     ImmutableList.Builder<String> instructionsBuilder = ImmutableList.builder();
     Account parent = accountStack.getLast();
-    ImmutableList<Account> children = childrenByParentId.get(parent.id).asList();
-    instructionsBuilder.add("Current account: " + parent.name);
+    ImmutableList<Account> children = childrenByParentId.get(parent.getId()).asList();
+    instructionsBuilder.add("Current account: " + parent.getName());
     instructionsBuilder.add(
-        "Use option " + GO_UP + " to go up to the parent of " + parent.name + " if one exists.");
-    instructionsBuilder.add("Use option " + THIS_ACCOUNT + " to choose " + parent.name);
+        "Use option "
+            + GO_UP
+            + " to go up to the parent of "
+            + parent.getName()
+            + " if one exists.");
+    instructionsBuilder.add("Use option " + THIS_ACCOUNT + " to choose " + parent.getName());
     if (!children.isEmpty()) {
       instructionsBuilder.add("Or, choose a child:");
     }
     for (int i = 0; i < children.size(); i++) {
-      instructionsBuilder.add("(" + (i + 1) + ") " + children.get(i).name);
+      instructionsBuilder.add("(" + (i + 1) + ") " + children.get(i).getName());
     }
     return instructionsBuilder.build();
   }
@@ -105,7 +109,7 @@ public class AccountPickerPrompt implements Prompt<Account> {
     if (accountStack.isEmpty()) {
       return "Press Ctrl+C to escape...";
     }
-    int numChildren = childrenByParentId.get(accountStack.getLast().id).size();
+    int numChildren = childrenByParentId.get(accountStack.getLast().getId()).size();
     StringBuilder promptStringBuilder =
         new StringBuilder()
             .append("Choose an option (")
@@ -125,6 +129,6 @@ public class AccountPickerPrompt implements Prompt<Account> {
 
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
-    return FluentIterable.from(accountsById.values()).transform((account) -> account.name).toSet();
+    return FluentIterable.from(accountsById.values()).transform(Account::getName).toSet();
   }
 }

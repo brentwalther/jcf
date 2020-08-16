@@ -16,8 +16,7 @@ import com.webcohesion.ofx4j.io.OFXParseException;
 import com.webcohesion.ofx4j.io.OFXReader;
 import com.webcohesion.ofx4j.io.OFXSyntaxException;
 import com.webcohesion.ofx4j.io.nanoxml.NanoXMLOFXReader;
-import net.brentwalther.jcf.model.Account;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -83,12 +82,12 @@ public class OfxConnector {
               CreditCardAccountDetails creditCardAccountDetails =
                   statementTransactions.getMessage().getAccount();
               Account account =
-                  new Account(
-                      creditCardAccountDetails.getAccountNumber(),
-                      creditCardAccountDetails.getAccountNumber(),
-                      JcfModel.Account.Type.LIABILITY,
-                      null);
-              accounts.put(account.id, account);
+                  Account.newBuilder()
+                      .setId(creditCardAccountDetails.getAccountNumber())
+                      .setName(creditCardAccountDetails.getAccountNumber())
+                      .setType(Account.Type.LIABILITY)
+                      .build();
+              accounts.put(account.getId(), account);
               for (com.webcohesion.ofx4j.domain.data.common.Transaction transaction :
                   statementTransactions.getMessage().getTransactionList().getTransactions()) {
                 BigDecimal amount = transaction.getBigDecimalAmount();
@@ -100,7 +99,7 @@ public class OfxConnector {
                         transaction.getName());
                 Split split =
                     new Split(
-                        account.id,
+                        account.getId(),
                         jfcTransaction.id,
                         amount.unscaledValue().intValue(),
                         (int) Math.pow(10, amount.scale()));
@@ -115,12 +114,12 @@ public class OfxConnector {
                 bankingResponse.getStatementResponses()) {
               BankAccountDetails details = statementTransactions.getMessage().getAccount();
               Account account =
-                  new Account(
-                      details.getAccountNumber(),
-                      details.getAccountKey(),
-                      JcfModel.Account.Type.ASSET,
-                      null);
-              accounts.put(account.id, account);
+                  Account.newBuilder()
+                      .setId(details.getAccountNumber())
+                      .setName(details.getAccountKey())
+                      .setType(Account.Type.ASSET)
+                      .build();
+              accounts.put(account.getId(), account);
               for (com.webcohesion.ofx4j.domain.data.common.Transaction transaction :
                   statementTransactions.getMessage().getTransactionList().getTransactions()) {
                 BigDecimal amount = transaction.getBigDecimalAmount();
@@ -132,7 +131,7 @@ public class OfxConnector {
                         transaction.getName());
                 Split split =
                     new Split(
-                        account.id,
+                        account.getId(),
                         jfcTransaction.id,
                         amount.unscaledValue().intValue(),
                         (int) Math.pow(10, amount.scale()));

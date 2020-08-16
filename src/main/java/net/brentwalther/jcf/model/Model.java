@@ -3,12 +3,12 @@ package net.brentwalther.jcf.model;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.flogger.FluentLogger;
 import com.google.common.hash.Hashing;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.time.Instant;
@@ -45,7 +45,7 @@ public class Model {
   public Model(
       Iterable<Account> accounts, Iterable<Transaction> transactions, Iterable<Split> splits) {
     this(
-        Maps.uniqueIndex(accounts, (account) -> account.id),
+        Maps.uniqueIndex(accounts, (account) -> account.getId()),
         Maps.uniqueIndex(transactions, (transaction) -> transaction.id),
         Multimaps.index(splits, (split) -> split.transactionId));
   }
@@ -54,15 +54,8 @@ public class Model {
     return new Model(ImmutableMap.of(), ImmutableMap.of(), ImmutableMultimap.of());
   }
 
-  public static Model createForAccounts(ImmutableList<JcfModel.Account> accounts) {
-    return new Model(
-        Lists.transform(
-            accounts,
-            (account) ->
-                new Account(
-                    account.getId(), account.getName(), account.getType(), account.getParentId())),
-        ImmutableList.of(),
-        ImmutableList.of());
+  public static Model createForAccounts(ImmutableList<Account> accounts) {
+    return new Model(accounts, ImmutableList.of(), ImmutableList.of());
   }
 
   @Override

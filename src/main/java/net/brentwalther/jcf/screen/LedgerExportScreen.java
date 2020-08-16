@@ -4,7 +4,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.Account;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
@@ -28,20 +28,22 @@ public class LedgerExportScreen {
     // First produce a map of accounts to names like Assets:Investments:VTSAX
     Map<String, String> accountIdToFullString = new HashMap<>();
     for (Account account : currentModel.accountsById.values()) {
-      if (accountIdToFullString.containsKey(account.parentId)) {
+      if (accountIdToFullString.containsKey(account.getParentId())) {
         accountIdToFullString.put(
-            account.id,
-            accountIdToFullString.get(account.parentId) + ACCOUNT_DELIMITER + account.name);
+            account.getId(),
+            accountIdToFullString.get(account.getParentId())
+                + ACCOUNT_DELIMITER
+                + account.getName());
       } else {
         // We haven't produced the name for this account or any parent yet. Just produce the whole
         // thing.
-        String originalId = account.id;
+        String originalId = account.getId();
         List<String> names = new ArrayList<>(4);
-        names.add(account.name);
-        while (!account.parentId.isEmpty()
-            && currentModel.accountsById.containsKey(account.parentId)) {
-          account = currentModel.accountsById.get(account.parentId);
-          names.add(account.name);
+        names.add(account.getName());
+        while (!account.getParentId().isEmpty()
+            && currentModel.accountsById.containsKey(account.getParentId())) {
+          account = currentModel.accountsById.get(account.getParentId());
+          names.add(account.getName());
         }
         accountIdToFullString.put(
             originalId, Joiner.on(ACCOUNT_DELIMITER).join(Lists.reverse(names)));

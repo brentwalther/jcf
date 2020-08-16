@@ -3,8 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.Account;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.prompt.FilePrompt;
@@ -79,7 +78,7 @@ public class MainMenuScreen {
                 ModelManager.getCurrentModel(),
                 csvFile,
                 /* filters= */ ImmutableList.of(
-                    exportItem -> !exportItem.account().type.equals(JcfModel.Account.Type.EXPENSE)));
+                    exportItem -> !exportItem.account().getType().equals(Account.Type.EXPENSE)));
           }
           break;
         case LEDGER_EXPORT:

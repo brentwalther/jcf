@@ -13,9 +13,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.brentwalther.jcf.matcher.SplitMatcher;
-import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.FileType;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -35,6 +34,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
 
@@ -210,15 +210,14 @@ public class CsvMatcher {
     return ImmutableList.of();
   }
 
-  private static Iterable<String> lineByLineIterator(File csvFile) throws IOException {
+  private static Iterator<String> lineByLineIterator(File csvFile) throws IOException {
     Scanner csvFileScanner = new Scanner(csvFile);
-    return () ->
-        new AbstractIterator<String>() {
-          @Override
-          protected String computeNext() {
-            return csvFileScanner.hasNextLine() ? csvFileScanner.nextLine() : endOfData();
-          }
-        };
+    return new AbstractIterator<String>() {
+      @Override
+      protected String computeNext() {
+        return csvFileScanner.hasNextLine() ? csvFileScanner.nextLine() : endOfData();
+      }
+    };
   }
 
   private String getFirstLineOf(File csvFile) throws FileNotFoundException {
@@ -229,7 +228,7 @@ public class CsvMatcher {
   }
 
   private static Account dummyAccount(String accountName) {
-    return new Account(accountName, accountName, JcfModel.Account.Type.ASSET, "");
+    return Account.newBuilder().setId(accountName).setName(accountName).setType(Account.Type.UNKNOWN_TYPE).build();
   }
 
   private static Model extractModelFrom(File file, FileType fileType) {
@@ -304,7 +303,7 @@ public class CsvMatcher {
       }
       String transactionId = String.valueOf(id++);
       transactions.add(new Transaction(Transaction.DataSource.CSV, transactionId, date, desc));
-      splits.add(new Split(fromAccount.id, transactionId, valueNum, valueDenom));
+      splits.add(new Split(fromAccount.getId(), transactionId, valueNum, valueDenom));
     }
     return new Model(ImmutableList.of(fromAccount), transactions, splits);
   }

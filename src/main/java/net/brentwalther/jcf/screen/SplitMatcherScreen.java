@@ -8,8 +8,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
-import net.brentwalther.jcf.model.Account;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -18,7 +17,6 @@ import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
-import org.jline.terminal.Terminal;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -27,7 +25,7 @@ import java.util.List;
 public class SplitMatcherScreen {
 
   private static final Account UNSELECTED_ACCOUNT =
-      new Account("UNMATCHED", "Imbalance", JcfModel.Account.Type.UNKNOWN_TYPE, "");
+      Account.newBuilder().setId("UNMATCHED").setName("Imbalance").build();
 
   public static void start(
       SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {
@@ -50,7 +48,7 @@ public class SplitMatcherScreen {
               .build();
 
       ImmutableMap<String, Account> accountsByName =
-          Maps.uniqueIndex(allKnownAccounts, a -> a.name);
+          Maps.uniqueIndex(allKnownAccounts, Account::getName);
 
       Split existingSplit =
           Iterables.getOnlyElement(model.splitsByTransactionId.get(transactionId));
@@ -73,14 +71,14 @@ public class SplitMatcherScreen {
                   + Formatter.currency(amount)
                   + " flowed "
                   + (isFlowingOut ? "from " : "to ")
-                  + account.name
+                  + account.getName()
                   + (isFlowingOut ? " to:" : " from:"));
 
       OptionsPrompt.Choice result =
           PromptEvaluator.showAndGetResult(
               TerminalProvider.get(),
               PromptDecorator.decorateWithStatusBars(
-                  OptionsPrompt.builder(Lists.transform(options, (candidate) -> candidate.name))
+                  OptionsPrompt.builder(Lists.transform(options, Account::getName))
                       .withDefaultOption(1)
                       .withAutoCompleteOptions(accountsByName.keySet())
                       .withPrefaces(prefaces)
@@ -107,7 +105,7 @@ public class SplitMatcherScreen {
       matchedAccounts.add(chosenAccount);
       matches.add(
           new Split(
-              chosenAccount.id,
+              chosenAccount.getId(),
               transactionId,
               -existingSplit.valueNumerator,
               existingSplit.valueDenominator));

@@ -5,8 +5,8 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
-import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.Transaction;
 

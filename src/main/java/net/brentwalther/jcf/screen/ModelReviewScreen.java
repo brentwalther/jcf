@@ -13,8 +13,8 @@ import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
-import net.brentwalther.jcf.model.Account;
 import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
@@ -49,9 +49,7 @@ class ModelReviewScreen {
     String accountList =
         "- Accounts: "
             + Joiner.on(", ")
-                .join(
-                    Lists.transform(
-                        model.accountsById.values().asList(), (account) -> account.name));
+                .join(Lists.transform(model.accountsById.values().asList(), Account::getName));
     String transactionOverview =
         "- "
             + model.transactionsById.size()
@@ -113,7 +111,7 @@ class ModelReviewScreen {
               NoticePrompt.withMessages(
                   ImmutableList.of(
                       "The most frequently occuring account in this model is "
-                          + mostFrequentlyOccuringAccount.name,
+                          + mostFrequentlyOccuringAccount.getName(),
                       " however, that account doesn't appear in every split which makes this",
                       " export ambiguous. Please only export CSVs from a model created from a single account")));
         } else {
@@ -125,7 +123,7 @@ class ModelReviewScreen {
                 /* filters= */ ImmutableList.of(
                     exportItem -> exportItem.account().equals(mostFrequentlyOccuringAccount),
                     exportItem ->
-                        !exportItem.account().type.equals(JcfModel.Account.Type.EXPENSE)));
+                        !exportItem.account().getType().equals(JcfModel.Account.Type.EXPENSE)));
           }
         }
         break;
