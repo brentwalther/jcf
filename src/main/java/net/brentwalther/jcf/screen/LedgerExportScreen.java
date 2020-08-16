@@ -5,10 +5,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.util.Formatter;
+import net.brentwalther.jcf.util.ModelUtil;
 import org.jline.reader.impl.LineReaderImpl;
 import org.jline.terminal.Terminal;
 
@@ -67,12 +68,13 @@ public class LedgerExportScreen {
 
         List<Split> splits =
             new ArrayList<>(currentModel.splitsByTransactionId.get(transaction.getId()));
-        splits.sort(Ordering.natural().reverse().onResultOf(s -> s.amount()));
+        splits.sort(Ordering.natural().reverse().onResultOf(ModelUtil::toBigDecimal));
         for (Split split : splits) {
           writer.println(
               "  "
-                  + padString(accountIdToFullString.get(split.accountId), maxAccountNameLength + 2)
-                  + Formatter.ledgerCurrency(split.amount()));
+                  + padString(
+                      accountIdToFullString.get(split.getAccountId()), maxAccountNameLength + 2)
+                  + Formatter.ledgerCurrency(ModelUtil.toBigDecimal(split)));
         }
         writer.println();
       }

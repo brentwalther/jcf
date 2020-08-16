@@ -2,9 +2,9 @@ package net.brentwalther.jcf.model.importer;
 
 import com.google.common.base.Splitter;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -42,7 +42,13 @@ public class TsvTransactionDescAccountMappingImporter {
               .setDescription(payee)
               .build();
       transactions.add(transaction);
-      splits.add(new Split(account, transaction.getId(), 0, 1));
+      splits.add(
+          Split.newBuilder()
+              .setAccountId(account)
+              .setTransactionId(transaction.getId())
+              .setValueNumerator(0)
+              .setValueDenominator(1)
+              .build());
     }
     return new Model(accountsById.values(), transactions, splits);
   }

@@ -15,10 +15,10 @@ import com.google.common.collect.Maps;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.FileType;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.importer.LedgerAccountListingImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.screen.DateTimeFormatChooser;
@@ -312,7 +312,13 @@ public class CsvMatcher {
               .setDescription(desc)
               .build();
       transactions.add(transaction);
-      splits.add(new Split(fromAccount.getId(), transaction.getId(), valueNum, valueDenom));
+      splits.add(
+          Split.newBuilder()
+              .setAccountId(fromAccount.getId())
+              .setTransactionId(transaction.getId())
+              .setValueNumerator(valueNum)
+              .setValueDenominator(valueDenom)
+              .build());
     }
     return new Model(ImmutableList.of(fromAccount), transactions, splits);
   }

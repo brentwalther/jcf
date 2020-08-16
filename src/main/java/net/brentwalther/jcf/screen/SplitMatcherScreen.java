@@ -9,14 +9,15 @@ import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
+import net.brentwalther.jcf.util.ModelUtil;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,7 +54,7 @@ public class SplitMatcherScreen {
 
       Split existingSplit =
           Iterables.getOnlyElement(model.splitsByTransactionId.get(transactionId));
-      BigDecimal amount = existingSplit.amount();
+      BigDecimal amount = ModelUtil.toBigDecimal(existingSplit);
       boolean isFlowingOut = amount.compareTo(BigDecimal.ZERO) < 0;
       if (isFlowingOut) {
         amount = amount.negate();
@@ -104,11 +105,12 @@ public class SplitMatcherScreen {
       }
       matchedAccounts.add(chosenAccount);
       matches.add(
-          new Split(
-              chosenAccount.getId(),
-              transactionId,
-              -existingSplit.valueNumerator,
-              existingSplit.valueDenominator));
+          Split.newBuilder()
+              .setAccountId(chosenAccount.getId())
+              .setTransactionId(transactionId)
+              .setValueNumerator(-existingSplit.getValueNumerator())
+              .setValueDenominator(existingSplit.getValueDenominator())
+              .build());
     }
 
     ImmutableList<Split> existingSplits = model.splitsByTransactionId.values().asList();

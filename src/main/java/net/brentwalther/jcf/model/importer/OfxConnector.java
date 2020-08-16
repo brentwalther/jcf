@@ -17,9 +17,9 @@ import com.webcohesion.ofx4j.io.OFXReader;
 import com.webcohesion.ofx4j.io.OFXSyntaxException;
 import com.webcohesion.ofx4j.io.nanoxml.NanoXMLOFXReader;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -99,13 +99,14 @@ public class OfxConnector {
                         .setDescription(transaction.getName())
                         .build();
                 Split split =
-                    new Split(
-                        account.getId(),
-                        jfcTransaction.getId(),
-                        amount.unscaledValue().intValue(),
-                        (int) Math.pow(10, amount.scale()));
+                    Split.newBuilder()
+                        .setAccountId(account.getId())
+                        .setTransactionId(jfcTransaction.getId())
+                        .setValueNumerator(amount.unscaledValue().intValue())
+                        .setValueDenominator((int) Math.pow(10, amount.scale()))
+                        .build();
                 transactions.put(jfcTransaction.getId(), jfcTransaction);
-                splits.put(split.transactionId, split);
+                splits.put(split.getTransactionId(), split);
               }
             }
             break;
@@ -132,13 +133,14 @@ public class OfxConnector {
                         .setDescription(transaction.getName())
                         .build();
                 Split split =
-                    new Split(
-                        account.getId(),
-                        jfcTransaction.getId(),
-                        amount.unscaledValue().intValue(),
-                        (int) Math.pow(10, amount.scale()));
+                    Split.newBuilder()
+                        .setAccountId(account.getId())
+                        .setTransactionId(jfcTransaction.getId())
+                        .setValueNumerator(amount.unscaledValue().intValue())
+                        .setValueDenominator((int) Math.pow(10, amount.scale()))
+                        .build();
                 transactions.put(jfcTransaction.getId(), jfcTransaction);
-                splits.put(split.transactionId, split);
+                splits.put(split.getTransactionId(), split);
               }
             }
             break;

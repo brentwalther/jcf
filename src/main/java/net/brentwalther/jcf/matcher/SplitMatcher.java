@@ -6,9 +6,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -38,7 +38,8 @@ public class SplitMatcher {
     Map<String, Account> accounts = model.accountsById;
     for (Split split : model.splitsByTransactionId.values()) {
       matcher.link(
-          accounts.get(split.accountId), transactions.get(split.transactionId).getDescription());
+          accounts.get(split.getAccountId()),
+          transactions.get(split.getTransactionId()).getDescription());
     }
     return matcher;
   }

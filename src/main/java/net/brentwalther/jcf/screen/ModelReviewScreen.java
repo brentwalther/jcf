@@ -15,14 +15,15 @@ import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.prompt.FilePrompt;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
+import net.brentwalther.jcf.util.ModelUtil;
 import org.jline.terminal.Terminal;
 
 import java.io.File;
@@ -100,7 +101,7 @@ class ModelReviewScreen {
         Multiset<Account> accountCounts =
             HashMultiset.create(
                 FluentIterable.from(model.splitsByTransactionId.values())
-                    .transform((split) -> model.accountsById.get(split.accountId)));
+                    .transform((split) -> model.accountsById.get(split.getAccountId())));
         Account mostFrequentlyOccuringAccount =
             Iterables.getFirst(Multisets.copyHighestCountFirst(accountCounts), null);
         if (mostFrequentlyOccuringAccount == null
@@ -138,7 +139,7 @@ class ModelReviewScreen {
     for (String id : splitsByTransactionId.keySet()) {
       boolean isBalanced =
           splitsByTransactionId.get(id).stream()
-                  .map(Split::amount)
+                  .map(ModelUtil::toBigDecimal)
                   .reduce(BigDecimal.ZERO, BigDecimal::add)
                   .compareTo(BigDecimal.ZERO)
               == 0;

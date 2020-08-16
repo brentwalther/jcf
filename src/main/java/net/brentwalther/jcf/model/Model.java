@@ -9,6 +9,7 @@ import com.google.common.collect.Multimaps;
 import com.google.common.flogger.FluentLogger;
 import com.google.common.hash.Hashing;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.util.Formatter;
 
@@ -48,7 +49,7 @@ public class Model {
     this(
         Maps.uniqueIndex(accounts, Account::getId),
         Maps.uniqueIndex(transactions, Transaction::getId),
-        Multimaps.index(splits, (split) -> split.transactionId));
+        Multimaps.index(splits, Split::getTransactionId));
   }
 
   public static Model empty() {

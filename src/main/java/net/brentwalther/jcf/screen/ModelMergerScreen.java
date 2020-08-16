@@ -4,10 +4,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimaps;
 import net.brentwalther.jcf.TerminalProvider;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 
@@ -17,20 +17,23 @@ public class ModelMergerScreen {
     ImmutableListMultimap<String, Split> currentSplitsByDescription =
         Multimaps.index(
             currentModel.splitsByTransactionId.values(),
-            (split) -> currentModel.transactionsById.get(split.transactionId).getDescription());
+            (split) ->
+                currentModel.transactionsById.get(split.getTransactionId()).getDescription());
 
     for (Split split : modelToMerge.splitsByTransactionId.values()) {
       ImmutableList<Split> splitsWithSameDescription =
           currentSplitsByDescription.get(
-              modelToMerge.transactionsById.get(split.transactionId).getDescription());
+              modelToMerge.transactionsById.get(split.getTransactionId()).getDescription());
       if (splitsWithSameDescription.isEmpty()) {
         continue;
       }
       for (Split otherSplit : splitsWithSameDescription) {
-        Transaction transaction = modelToMerge.transactionsById.get(split.transactionId);
-        Transaction otherTransaction = currentModel.transactionsById.get(otherSplit.transactionId);
-        if (split.accountId.equals(otherSplit.accountId)
-            && split.amount().compareTo(otherSplit.amount()) == 0
+        Transaction transaction = modelToMerge.transactionsById.get(split.getTransactionId());
+        Transaction otherTransaction =
+            currentModel.transactionsById.get(otherSplit.getTransactionId());
+        if (split.getAccountId().equals(otherSplit.getAccountId())
+            && split.getValueNumerator() == otherSplit.getValueNumerator()
+            && split.getValueDenominator() == otherSplit.getValueDenominator()
             && transaction.getPostDateEpochSecond() == otherTransaction.getPostDateEpochSecond()) {
           PromptEvaluator.showAndGetResult(
               TerminalProvider.get(),

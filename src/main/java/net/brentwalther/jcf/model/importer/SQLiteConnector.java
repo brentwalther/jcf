@@ -6,9 +6,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 
 import java.io.File;
 import java.sql.Connection;
@@ -73,13 +73,14 @@ public class SQLiteConnector {
       Multimap<String, Split> splitsByTransactionId = ArrayListMultimap.create();
       if (splitsMatcher.matches(splitsResults.getMetaData())) {
         for (ImmutableMap<Field, String> result : splitsMatcher.getResults(splitsResults)) {
-          splitsByTransactionId.put(
-              result.get(Field.TRANSACTION_GUID),
-              new Split(
-                  accountsById.get(result.get(Field.ACCOUNT_GUID)).getId(),
-                  result.get(Field.TRANSACTION_GUID),
-                  Integer.parseInt(result.get(Field.VALUE_NUMERATOR)),
-                  Integer.parseInt(result.get(Field.VALUE_DENOMINATOR))));
+          Split split =
+              Split.newBuilder()
+                  .setAccountId(accountsById.get(result.get(Field.ACCOUNT_GUID)).getId())
+                  .setTransactionId(result.get(Field.TRANSACTION_GUID))
+                  .setValueNumerator(Integer.parseInt(result.get(Field.VALUE_NUMERATOR)))
+                  .setValueDenominator(Integer.parseInt(result.get(Field.VALUE_DENOMINATOR)))
+                  .build();
+          splitsByTransactionId.put(split.getTransactionId(), split);
         }
       } else {
         System.err.println("Could not initialize splits. Matcher did not match.");

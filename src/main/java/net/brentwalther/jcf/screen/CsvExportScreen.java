@@ -5,12 +5,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
+import net.brentwalther.jcf.util.ModelUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,12 +32,12 @@ public class CsvExportScreen {
             new ExportItem() {
               @Override
               public Account account() {
-                return model.accountsById.get(split.accountId);
+                return model.accountsById.get(split.getAccountId());
               }
 
               @Override
               public Transaction transaction() {
-                return model.transactionsById.get(split.transactionId);
+                return model.transactionsById.get(split.getTransactionId());
               }
 
               @Override
@@ -65,7 +66,7 @@ public class CsvExportScreen {
                     Formatter.date(
                         Instant.ofEpochSecond(exportItem.transaction().getPostDateEpochSecond()))),
                 quote(exportItem.account().getName()),
-                quote(Formatter.currency(exportItem.split().amount()))));
+                quote(Formatter.currency(ModelUtil.toBigDecimal(exportItem.split())))));
       }
       printWriter.flush();
       printWriter.close();

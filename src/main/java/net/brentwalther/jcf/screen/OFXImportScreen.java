@@ -6,7 +6,6 @@ import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
-import net.brentwalther.jcf.model.Split;
 import net.brentwalther.jcf.model.importer.OfxConnector;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.NoticePrompt;
@@ -65,15 +64,7 @@ public class OFXImportScreen {
         new Model(
             ImmutableList.of(selectedAccount),
             importedOfxModel.transactionsById.values().asList(),
-            importedOfxModel.splitsByTransactionId.values().stream()
-                .map(
-                    (split) ->
-                        new Split(
-                            selectedAccount.getId(),
-                            split.transactionId,
-                            split.valueNumerator,
-                            split.valueDenominator))
-                .collect(ImmutableList.toImmutableList()));
+            importedOfxModel.splitsByTransactionId.values());
     // Now that we know which account these transactions are for, fix the imported model and splits.
     ModelManager.addModel(updatedModel);
     PromptEvaluator.showAndGetResult(
