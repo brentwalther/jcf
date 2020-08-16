@@ -4,3 +4,5 @@ bazel-*
 /.ijwb/
 /.aswb/
 /.clwb/
+/.idea/
+*.iml
