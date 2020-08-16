@@ -9,16 +9,17 @@ import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class SplitMatcherScreen {
         continue;
       }
       Transaction transaction = model.transactionsById.get(transactionId);
-      String transactionDescription = transaction.description;
+      String transactionDescription = transaction.getDescription();
 
       ImmutableList<Account> options =
           ImmutableList.<Account>builder()
@@ -66,9 +67,8 @@ public class SplitMatcherScreen {
               "A transaction was made with "
                   + transactionDescription
                   + " on "
-                  + Formatter.dateTime(transaction.postDate),
-              "  "
-                  + Formatter.currency(amount)
+                  + Formatter.dateTime(Instant.ofEpochSecond(transaction.getPostDateEpochSecond())),
+              Formatter.currency(amount)
                   + " flowed "
                   + (isFlowingOut ? "from " : "to ")
                   + account.getName()

@@ -6,9 +6,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 
 import java.io.File;
 import java.sql.Connection;
@@ -100,14 +100,13 @@ public class SQLiteConnector {
                   ZonedDateTime.of(
                       LocalDateTime.parse(result.get(Field.POST_DATE), formatter),
                       ZoneId.systemDefault()));
-          String transactionGuid = result.get(Field.GUID);
-          transactionsById.put(
-              transactionGuid,
-              new Transaction(
-                  Transaction.DataSource.GNUCASH_DB,
-                  transactionGuid,
-                  postDate,
-                  result.get(Field.DESCRIPTION)));
+          Transaction transaction =
+              Transaction.newBuilder()
+                  .setId(result.get(Field.GUID))
+                  .setPostDateEpochSecond(postDate.getEpochSecond())
+                  .setDescription(result.get(Field.DESCRIPTION))
+                  .build();
+          transactionsById.put(transaction.getId(), transaction);
         }
       } else {
         System.err.println("Could not initialize transactions. Matcher did not match.");

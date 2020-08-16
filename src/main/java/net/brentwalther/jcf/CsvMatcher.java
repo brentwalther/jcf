@@ -15,10 +15,10 @@ import com.google.common.collect.Maps;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.FileType;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 import net.brentwalther.jcf.model.importer.LedgerAccountListingImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.screen.DateTimeFormatChooser;
@@ -228,7 +228,11 @@ public class CsvMatcher {
   }
 
   private static Account dummyAccount(String accountName) {
-    return Account.newBuilder().setId(accountName).setName(accountName).setType(Account.Type.UNKNOWN_TYPE).build();
+    return Account.newBuilder()
+        .setId(accountName)
+        .setName(accountName)
+        .setType(Account.Type.UNKNOWN_TYPE)
+        .build();
   }
 
   private static Model extractModelFrom(File file, FileType fileType) {
@@ -301,9 +305,14 @@ public class CsvMatcher {
             Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.DEBIT)).replace(".", ""))
                 * -1;
       }
-      String transactionId = String.valueOf(id++);
-      transactions.add(new Transaction(Transaction.DataSource.CSV, transactionId, date, desc));
-      splits.add(new Split(fromAccount.getId(), transactionId, valueNum, valueDenom));
+      Transaction transaction =
+          Transaction.newBuilder()
+              .setId(String.valueOf(id++))
+              .setPostDateEpochSecond(date.getEpochSecond())
+              .setDescription(desc)
+              .build();
+      transactions.add(transaction);
+      splits.add(new Split(fromAccount.getId(), transaction.getId(), valueNum, valueDenom));
     }
     return new Model(ImmutableList.of(fromAccount), transactions, splits);
   }

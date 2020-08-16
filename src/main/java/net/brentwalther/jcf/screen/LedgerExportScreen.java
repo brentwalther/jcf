@@ -5,9 +5,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 import net.brentwalther.jcf.util.Formatter;
 import org.jline.reader.impl.LineReaderImpl;
 import org.jline.terminal.Terminal;
@@ -15,7 +15,9 @@ import org.jline.terminal.Terminal;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,13 +58,15 @@ public class LedgerExportScreen {
     Terminal terminal = TerminalProvider.get();
     try (PrintWriter writer = new PrintWriter(outputStream)) {
       List<Transaction> transactions = new ArrayList<>(currentModel.transactionsById.values());
-      transactions.sort(Ordering.natural().onResultOf(t -> t.postDate));
+      transactions.sort(Comparator.comparingLong(Transaction::getPostDateEpochSecond));
       for (Transaction transaction : transactions) {
         writer.println(
-            Formatter.ledgerDate(transaction.postDate) + " * " + transaction.description);
+            Formatter.ledgerDate(Instant.ofEpochSecond(transaction.getPostDateEpochSecond()))
+                + " * "
+                + transaction.getDescription());
 
         List<Split> splits =
-            new ArrayList<>(currentModel.splitsByTransactionId.get(transaction.id));
+            new ArrayList<>(currentModel.splitsByTransactionId.get(transaction.getId()));
         splits.sort(Ordering.natural().reverse().onResultOf(s -> s.amount()));
         for (Split split : splits) {
           writer.println(

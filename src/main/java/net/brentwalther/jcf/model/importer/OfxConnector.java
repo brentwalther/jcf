@@ -17,9 +17,9 @@ import com.webcohesion.ofx4j.io.OFXReader;
 import com.webcohesion.ofx4j.io.OFXSyntaxException;
 import com.webcohesion.ofx4j.io.nanoxml.NanoXMLOFXReader;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -92,18 +92,19 @@ public class OfxConnector {
                   statementTransactions.getMessage().getTransactionList().getTransactions()) {
                 BigDecimal amount = transaction.getBigDecimalAmount();
                 Transaction jfcTransaction =
-                    new Transaction(
-                        Transaction.DataSource.OFX,
-                        transaction.getId(),
-                        transaction.getDatePosted().toInstant(),
-                        transaction.getName());
+                    Transaction.newBuilder()
+                        .setId(transaction.getId())
+                        .setPostDateEpochSecond(
+                            transaction.getDatePosted().toInstant().getEpochSecond())
+                        .setDescription(transaction.getName())
+                        .build();
                 Split split =
                     new Split(
                         account.getId(),
-                        jfcTransaction.id,
+                        jfcTransaction.getId(),
                         amount.unscaledValue().intValue(),
                         (int) Math.pow(10, amount.scale()));
-                transactions.put(jfcTransaction.id, jfcTransaction);
+                transactions.put(jfcTransaction.getId(), jfcTransaction);
                 splits.put(split.transactionId, split);
               }
             }
@@ -124,18 +125,19 @@ public class OfxConnector {
                   statementTransactions.getMessage().getTransactionList().getTransactions()) {
                 BigDecimal amount = transaction.getBigDecimalAmount();
                 Transaction jfcTransaction =
-                    new Transaction(
-                        Transaction.DataSource.OFX,
-                        transaction.getId(),
-                        transaction.getDatePosted().toInstant(),
-                        transaction.getName());
+                    Transaction.newBuilder()
+                        .setId(transaction.getId())
+                        .setPostDateEpochSecond(
+                            transaction.getDatePosted().toInstant().getEpochSecond())
+                        .setDescription(transaction.getName())
+                        .build();
                 Split split =
                     new Split(
                         account.getId(),
-                        jfcTransaction.id,
+                        jfcTransaction.getId(),
                         amount.unscaledValue().intValue(),
                         (int) Math.pow(10, amount.scale()));
-                transactions.put(jfcTransaction.id, jfcTransaction);
+                transactions.put(jfcTransaction.getId(), jfcTransaction);
                 splits.put(split.transactionId, split);
               }
             }

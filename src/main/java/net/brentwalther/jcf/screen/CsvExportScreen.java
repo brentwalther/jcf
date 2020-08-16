@@ -3,12 +3,11 @@ package net.brentwalther.jcf.screen;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
@@ -16,8 +15,10 @@ import net.brentwalther.jcf.util.Formatter;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class CsvExportScreen {
@@ -52,14 +53,17 @@ public class CsvExportScreen {
       // Sort them by their post date.
       Collections.sort(
           exportItems,
-          Ordering.natural().onResultOf((exportItem) -> exportItem.transaction().postDate));
+          Comparator.comparingLong(
+              (exportItem) -> exportItem.transaction().getPostDateEpochSecond()));
 
       PrintWriter printWriter = new PrintWriter(csvFile);
       Joiner joiner = Joiner.on(",");
       for (ExportItem exportItem : exportItems) {
         printWriter.println(
             joiner.join(
-                quote(Formatter.date(exportItem.transaction().postDate)),
+                quote(
+                    Formatter.date(
+                        Instant.ofEpochSecond(exportItem.transaction().getPostDateEpochSecond()))),
                 quote(exportItem.account().getName()),
                 quote(Formatter.currency(exportItem.split().amount()))));
       }

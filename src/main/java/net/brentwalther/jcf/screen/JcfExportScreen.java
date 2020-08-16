@@ -6,7 +6,6 @@ import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 
@@ -19,14 +18,9 @@ public class JcfExportScreen {
   public static void start(Model model, File file) {
     try {
       JcfModel.Model.Builder jcfModel =
-          JcfModel.Model.newBuilder().addAllAccount(model.accountsById.values());
-      for (Transaction transaction : model.transactionsById.values()) {
-        jcfModel.addTransaction(
-            JcfModel.Transaction.newBuilder()
-                .setId(transaction.id)
-                .setDescription(transaction.description)
-                .setPostDateEpochSecond(transaction.postDate.getEpochSecond()));
-      }
+          JcfModel.Model.newBuilder()
+              .addAllAccount(model.accountsById.values())
+              .addAllTransaction(model.transactionsById.values());
       for (Split split : model.splitsByTransactionId.values()) {
         jcfModel.addSplit(
             JcfModel.Split.newBuilder()

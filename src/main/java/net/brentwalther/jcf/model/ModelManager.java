@@ -2,6 +2,7 @@ package net.brentwalther.jcf.model;
 
 import com.google.common.collect.ImmutableList;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 
 import java.util.HashMap;
 import java.util.Map;

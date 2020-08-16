@@ -2,9 +2,9 @@ package net.brentwalther.jcf.model.importer;
 
 import com.google.common.base.Splitter;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.Split;
-import net.brentwalther.jcf.model.Transaction;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,18 +31,18 @@ public class TsvTransactionDescAccountMappingImporter {
       }
       String payee = pieces.get(0);
       String account = pieces.get(1);
-      String transactionId = String.valueOf(id++);
 
       // TODO: Make ledger dump the account type to let us fill it in here.
       accountsById.putIfAbsent(
           account, Account.newBuilder().setId(account).setName(account).build());
-      transactions.add(
-          new Transaction(
-              Transaction.DataSource.TRANSACTION_DESC_ACCOUNT_NAME_MAPPING_FILE,
-              transactionId,
-              Instant.now(),
-              payee));
-      splits.add(new Split(account, transactionId, 0, 1));
+      Transaction transaction =
+          Transaction.newBuilder()
+              .setId(String.valueOf(id++))
+              .setPostDateEpochSecond(Instant.now().getEpochSecond())
+              .setDescription(payee)
+              .build();
+      transactions.add(transaction);
+      splits.add(new Split(account, transaction.getId(), 0, 1));
     }
     return new Model(accountsById.values(), transactions, splits);
   }
