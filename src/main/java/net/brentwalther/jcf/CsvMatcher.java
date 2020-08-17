@@ -21,6 +21,8 @@ import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
 import net.brentwalther.jcf.model.importer.LedgerAccountListingImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
+import net.brentwalther.jcf.prompt.AccountPickerPrompt;
+import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.screen.DateTimeFormatChooser;
 import net.brentwalther.jcf.screen.FieldPositionChooser;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
@@ -40,6 +42,15 @@ import java.util.Scanner;
 
 public class CsvMatcher {
 
+  /** The empty string, representing an unset string flag value. */
+  private static final String UNSET = "";
+
+  private static final String NEW_LINE = "\n";
+  private static final ImmutableList<CsvField> CSV_FIELDS = ImmutableList.copyOf(CsvField.values());
+  private static final ImmutableList<String> CSV_FIELD_NAMES =
+      ImmutableList.copyOf(Lists.transform(CSV_FIELDS, (field) -> field.stringVal));
+  private static final Splitter CSV_SPLITTER = Splitter.on(',');
+
   @Parameter(
       names = {"--help", "-h"},
       help = true)
@@ -48,36 +59,29 @@ public class CsvMatcher {
   @Parameter(
       names = {"--tsv_desc_account_mapping"},
       required = true)
-  private String descToAccountTsvFileName = EMPTY;
+  private String descToAccountTsvFileName = UNSET;
 
   @Parameter(names = {"--ledger_account_listing"})
-  private String ledgerAccountListingFileName = EMPTY;
+  private String ledgerAccountListingFileName = UNSET;
 
   @Parameter(
       names = {"--transaction_csv"},
       required = true)
-  private String csvFileName = EMPTY;
+  private String csvFileName = UNSET;
 
   @Parameter(names = {"--csv_field_ordering"})
-  private String csvFieldOrdering = EMPTY;
+  private String csvFieldOrdering = UNSET;
 
   @Parameter(names = {"--date_format"})
-  private String dateFormat = EMPTY;
+  private String dateFormat = UNSET;
 
   @Parameter(names = {"--account_name"})
-  private String accountName = EMPTY;
+  private String accountName = UNSET;
 
   @Parameter(
       names = {"--output"},
       required = true)
-  private String outputFileName = EMPTY;
-
-  private static final String EMPTY = "";
-  private static final String NEW_LINE = "\n";
-  private static final ImmutableList<CsvField> CSV_FIELDS = ImmutableList.copyOf(CsvField.values());
-  private static final ImmutableList<String> CSV_FIELD_NAMES =
-      ImmutableList.copyOf(Lists.transform(CSV_FIELDS, (field) -> field.stringVal));
-  private static final Splitter CSV_SPLITTER = Splitter.on(',');
+  private String outputFileName = UNSET;
 
   public static void main(String[] args) throws Exception {
     CsvMatcher csvMatcher = new CsvMatcher();
@@ -121,20 +125,35 @@ public class CsvMatcher {
     if (!csvFieldOrdering.isEmpty()) {
       List<String> inputFieldNames = CSV_SPLITTER.splitToList(csvFieldOrdering);
       // Ensure all fields are properly defined.
-      if (Iterables.any(
-          inputFieldNames, field -> !field.isEmpty() && !CSV_FIELD_NAMES.contains(field))) {
+      if (inputFieldNames.stream()
+          .anyMatch(
+              field -> field != null && !field.isEmpty() && !CSV_FIELD_NAMES.contains(field))) {
         System.err.println(
-            new StringBuilder("")
-                .append("The CSV column (field) ordering is not properly defined:" + NEW_LINE)
-                .append(csvFieldOrdering + NEW_LINE)
-                .append("It should be a csv string only containing fields: " + NEW_LINE)
-                .append(Joiner.on(',').join(CSV_FIELD_NAMES) + NEW_LINE)
-                .toString());
+            "The CSV column (field) ordering is not properly defined:"
+                + NEW_LINE
+                + csvFieldOrdering
+                + NEW_LINE
+                + "It should be a csv string only containing fields: "
+                + NEW_LINE
+                + Joiner.on(',').join(CSV_FIELD_NAMES)
+                + NEW_LINE);
         System.exit(1);
       }
       extractedFieldNames = ImmutableList.copyOf(inputFieldNames);
     }
     final ImmutableList<String> finalExtractedFieldNames = extractedFieldNames;
+    ImmutableMap<CsvField, Integer> csvFieldPositions =
+        Maps.toMap(CSV_FIELDS, (field) -> finalExtractedFieldNames.indexOf(field.stringVal));
+
+    if (csvFieldPositions.isEmpty()) {
+      csvFieldPositions = FieldPositionChooser.getPositionsFor(getFirstLineOf(csvFile));
+
+      if (csvFieldPositions.isEmpty()) {
+        System.err.println(
+            "Unable to read CSV because there is no field mapping. Please either complete the mapping wizard or pass --csv_field_ordering");
+        System.exit(1);
+      }
+    }
 
     File ledgerFile = new File(outputFileName);
     if (ledgerFile.exists()) {
@@ -142,19 +161,9 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    ImmutableMap<CsvField, Integer> csvFieldPositions =
-        extractedFieldNames.isEmpty()
-            ? FieldPositionChooser.getPositionsFor(getFirstLineOf(csvFile))
-            : Maps.toMap(CSV_FIELDS, (field) -> finalExtractedFieldNames.indexOf(field.stringVal));
-
-    if (csvFieldPositions.isEmpty()) {
-      System.err.println(
-          "Unable to read CSV because there is no field mapping. Please either complete the mapping wizard or pass --csv_field_ordering");
-      System.exit(1);
-    }
-
     DateTimeFormatter dateTimeFormatter;
     if (dateFormat.isEmpty()) {
+      final ImmutableMap<CsvField, Integer> finalCsvFieldPositions = csvFieldPositions;
       dateTimeFormatter =
           DateTimeFormatChooser.obtainFormatForExamples(
               FluentIterable.from(loadAllLines(csvFile))
@@ -164,11 +173,11 @@ public class CsvMatcher {
                       (line) -> {
                         List<String> fields =
                             Splitter.on(',').trimResults().omitEmptyStrings().splitToList(line);
-                        if (!csvFieldPositions.containsKey(CsvField.DATE)
-                            || csvFieldPositions.get(CsvField.DATE) >= fields.size()) {
+                        if (!finalCsvFieldPositions.containsKey(CsvField.DATE)
+                            || finalCsvFieldPositions.get(CsvField.DATE) >= fields.size()) {
                           return null;
                         } else {
-                          return fields.get(csvFieldPositions.get(CsvField.DATE));
+                          return fields.get(finalCsvFieldPositions.get(CsvField.DATE));
                         }
                       })
                   .filter(Predicates.notNull()));
@@ -182,18 +191,19 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    Account fromAccount =
-        accountName == null || accountName.isEmpty()
-            ? dummyAccount("An account")
-            : dummyAccount(accountName);
-    Model modelToMatch =
-        createModelFromCsv(csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
-    SplitMatcherScreen.start(matcher, modelToMatch, model.accountsById.values());
-
     if (!ledgerFile.createNewFile()) {
       System.err.println("Failed to create ledger output file.");
       System.exit(1);
     }
+
+    Account fromAccount =
+        accountName.equals(UNSET)
+            ? PromptEvaluator.showAndGetResult(
+                TerminalProvider.get(), AccountPickerPrompt.create(model.accountsById))
+            : dummyAccount(accountName);
+    Model modelToMatch =
+        createModelFromCsv(csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
+    SplitMatcherScreen.start(matcher, modelToMatch, model.accountsById.values());
     LedgerExportScreen.start(
         Iterables.getOnlyElement(ModelManager.getUnmergedModels()),
         new FileOutputStream(ledgerFile));
@@ -292,18 +302,17 @@ public class CsvMatcher {
           Formatter.parseDateFrom(
               pieces.get(csvFieldPositions.get(CsvField.DATE)), dateTimeFormatter);
       String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
-      int valueNum = 0;
-      int valueDenom = 100;
+      int valueNumerator = 0;
+      int valueDenominator = 100;
       if (csvFieldPositions.get(CsvField.AMOUNT) != -1) {
-        valueNum =
-            Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.AMOUNT)).replace(".", ""));
+        valueNumerator =
+            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.AMOUNT)));
       } else if (pieces.get(csvFieldPositions.get(CsvField.DEBIT)).isEmpty()) {
-        valueNum =
-            Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.CREDIT)).replace(".", ""));
+        valueNumerator =
+            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.CREDIT)));
       } else {
-        valueNum =
-            Integer.valueOf(pieces.get(csvFieldPositions.get(CsvField.DEBIT)).replace(".", ""))
-                * -1;
+        valueNumerator =
+            -1 * parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.DEBIT)));
       }
       Transaction transaction =
           Transaction.newBuilder()
@@ -316,11 +325,15 @@ public class CsvMatcher {
           Split.newBuilder()
               .setAccountId(fromAccount.getId())
               .setTransactionId(transaction.getId())
-              .setValueNumerator(valueNum)
-              .setValueDenominator(valueDenom)
+              .setValueNumerator(valueNumerator)
+              .setValueDenominator(valueDenominator)
               .build());
     }
     return new Model(ImmutableList.of(fromAccount), transactions, splits);
+  }
+
+  private static int parseDollarValueAsCents(String dollarValueString) {
+    return Integer.parseInt(dollarValueString.replace(".", ""));
   }
 
   private static void verifyFileOrDie(File file, boolean shouldExist, String messageOnDeath) {

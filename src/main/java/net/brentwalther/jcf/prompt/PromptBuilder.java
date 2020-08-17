@@ -10,9 +10,11 @@ import java.util.function.Function;
 
 public class PromptBuilder<T> {
 
+  private static final String DEFAULT_PROMPT_STRING = "Enter something or press Ctrl+C to escape:";
+
   private ImmutableList<String> instructions = ImmutableList.of();
   private Function<String, Optional<T>> transformer = (input) -> Optional.empty();
-  private String promptString = "Enter something or press Ctrl+C to escape:";
+  private String promptString = DEFAULT_PROMPT_STRING;
 
   public static <T> PromptBuilder<T> create() {
     return new PromptBuilder<T>();

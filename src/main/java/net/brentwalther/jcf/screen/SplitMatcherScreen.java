@@ -27,7 +27,7 @@ import java.util.List;
 public class SplitMatcherScreen {
 
   private static final Account UNSELECTED_ACCOUNT =
-      Account.newBuilder().setId("UNMATCHED").setName("Imbalance").build();
+      Account.newBuilder().setId("UNMATCHED").setName("IMBALANCE").build();
 
   public static void start(
       SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {
