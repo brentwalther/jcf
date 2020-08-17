@@ -90,6 +90,12 @@ public class CsvMatcher {
   }
 
   public void run() throws Exception {
+    File ledgerFile = new File(outputFileName);
+    if (ledgerFile.exists()) {
+      System.err.println("The passed in output file (" + outputFileName + ") already exists!");
+      System.exit(1);
+    }
+
     File mappingFile = new File(descToAccountTsvFileName);
     verifyFileOrDie(
         mappingFile,
@@ -121,7 +127,7 @@ public class CsvMatcher {
         "The passed in transaction CSV file ("
             + csvFileName
             + ") does not refer to a file that exists.");
-    ImmutableList<String> extractedFieldNames = ImmutableList.of();
+    ImmutableMap<CsvField, Integer> csvFieldPositions = ImmutableMap.of();
     if (!csvFieldOrdering.isEmpty()) {
       List<String> inputFieldNames = CSV_SPLITTER.splitToList(csvFieldOrdering);
       // Ensure all fields are properly defined.
@@ -139,11 +145,13 @@ public class CsvMatcher {
                 + NEW_LINE);
         System.exit(1);
       }
-      extractedFieldNames = ImmutableList.copyOf(inputFieldNames);
+      csvFieldPositions =
+          ImmutableMap.copyOf(
+              FluentIterable.from(CSV_FIELDS)
+                  .transform(
+                      field -> Maps.immutableEntry(field, inputFieldNames.indexOf(field.stringVal)))
+                  .filter(entry -> entry.getValue() > -1));
     }
-    final ImmutableList<String> finalExtractedFieldNames = extractedFieldNames;
-    ImmutableMap<CsvField, Integer> csvFieldPositions =
-        Maps.toMap(CSV_FIELDS, (field) -> finalExtractedFieldNames.indexOf(field.stringVal));
 
     if (csvFieldPositions.isEmpty()) {
       csvFieldPositions = FieldPositionChooser.getPositionsFor(getFirstLineOf(csvFile));
@@ -153,12 +161,6 @@ public class CsvMatcher {
             "Unable to read CSV because there is no field mapping. Please either complete the mapping wizard or pass --csv_field_ordering");
         System.exit(1);
       }
-    }
-
-    File ledgerFile = new File(outputFileName);
-    if (ledgerFile.exists()) {
-      System.err.println("The passed in output file (" + outputFileName + ") already exists!");
-      System.exit(1);
     }
 
     DateTimeFormatter dateTimeFormatter;
@@ -201,6 +203,12 @@ public class CsvMatcher {
             ? PromptEvaluator.showAndGetResult(
                 TerminalProvider.get(), AccountPickerPrompt.create(model.accountsById))
             : dummyAccount(accountName);
+
+    if (fromAccount == null) {
+      System.err.println("Could not determine an account for the import.");
+      System.exit(1);
+    }
+
     Model modelToMatch =
         createModelFromCsv(csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
     SplitMatcherScreen.start(matcher, modelToMatch, model.accountsById.values());

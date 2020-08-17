@@ -13,6 +13,7 @@ import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.Model;
 import net.brentwalther.jcf.model.ModelManager;
+import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
@@ -85,6 +86,13 @@ public class SplitMatcherScreen {
                       .withPrefaces(prefaces)
                       .build(),
                   statusMessages));
+
+      if (result == null) {
+        PromptEvaluator.showAndGetResult(
+            TerminalProvider.get(),
+            NoticePrompt.withMessages(ImmutableList.of("Aborting split matching.")));
+        return;
+      }
 
       Account chosenAccount = UNSELECTED_ACCOUNT;
       if (result != null) {
