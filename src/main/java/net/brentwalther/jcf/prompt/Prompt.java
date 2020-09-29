@@ -32,4 +32,7 @@ public interface Prompt<T> {
 
   /** Returns the set of strings that the prompt auto completer will be filled with. */
   ImmutableSet<String> getAutoCompleteOptions();
+
+  /** If true, the prompt evaluator will clear everything on the prompt screen before printing. */
+  boolean shouldClearScreen();
 }

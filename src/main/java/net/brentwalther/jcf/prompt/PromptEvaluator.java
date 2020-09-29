@@ -10,7 +10,6 @@ import org.jline.utils.InfoCmp;
 
 import java.io.PrintWriter;
 import java.util.Optional;
-import java.util.stream.IntStream;
 
 public class PromptEvaluator<T> {
 
@@ -19,7 +18,9 @@ public class PromptEvaluator<T> {
   public static <T> T showAndGetResult(Terminal terminal, Prompt<T> prompt) {
     Optional<T> result = Optional.empty();
     do {
-      terminal.puts(InfoCmp.Capability.clear_screen);
+      if (prompt.shouldClearScreen()) {
+        terminal.puts(InfoCmp.Capability.clear_screen);
+      }
       Size size = terminal.getSize();
       printInstructions(prompt, terminal.writer(), size);
       terminal.flush();
@@ -30,7 +31,7 @@ public class PromptEvaluator<T> {
                 .terminal(terminal)
                 .completer(new StringsCompleter(prompt.getAutoCompleteOptions()))
                 .build()
-                .readLine(prompt.getPromptString());
+                .readLine("| " + prompt.getPromptString());
       } catch (UserInterruptException e) {
         return null;
       }
@@ -44,13 +45,14 @@ public class PromptEvaluator<T> {
     ImmutableList<String> statusBars = prompt.getStatusBars();
     // The amount of room you have for instructions is reduced by the status bars and the
     // prompt line itself.
-    Size instructionsSize = new Size(size.getColumns(), size.getRows() - statusBars.size() - 2);
+    Size instructionsSize = new Size(size.getColumns(), size.getRows() - statusBars.size() - 5);
     ImmutableList<String> instructions = prompt.getInstructions(instructionsSize);
 
-    statusBars.forEach(writer::println);
-    writer.println(duplicate(HORIZONTAL_LINE, size.getColumns()));
-    IntStream.range(0, instructionsSize.getRows() - instructions.size())
-        .forEach((i) -> writer.println());
+    writer.print(duplicate(HORIZONTAL_LINE, size.getColumns()));
+    if (!statusBars.isEmpty()) {
+      statusBars.forEach(writer::println);
+      writer.println(duplicate(HORIZONTAL_LINE, size.getColumns()));
+    }
     instructions.forEach(writer::println);
     writer.println(duplicate(HORIZONTAL_LINE, size.getColumns()));
   }

@@ -9,33 +9,31 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.FileType;
+import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.ModelManager;
+import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.model.importer.LedgerAccountListingImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
+import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.screen.DateTimeFormatChooser;
 import net.brentwalther.jcf.screen.FieldPositionChooser;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
-import net.brentwalther.jcf.util.Formatter;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.time.Instant;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
@@ -89,7 +87,64 @@ public class CsvMatcher {
     csvMatcher.run();
   }
 
-  public void run() throws Exception {
+  private static ImmutableList<String> loadAllLines(File file) {
+    try {
+      return ImmutableList.copyOf(lineByLineIterator(file));
+    } catch (IOException e) {
+      System.err.println("IOException occurred while loading file: " + file.getAbsolutePath());
+      System.err.println(e.toString());
+      System.exit(1);
+    }
+    return ImmutableList.of();
+  }
+
+  private static Iterator<String> lineByLineIterator(File csvFile) throws IOException {
+    Scanner csvFileScanner = new Scanner(csvFile);
+    return new AbstractIterator<String>() {
+      @Override
+      protected String computeNext() {
+        return csvFileScanner.hasNextLine() ? csvFileScanner.nextLine() : endOfData();
+      }
+    };
+  }
+
+  private static Account dummyAccount(String accountName) {
+    return Account.newBuilder()
+        .setId(accountName)
+        .setName(accountName)
+        .setType(Account.Type.UNKNOWN_TYPE)
+        .build();
+  }
+
+  private static JcfModel.Model extractModelFrom(File file, FileType fileType) {
+    switch (fileType) {
+      case TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING:
+        return TsvTransactionDescAccountMappingImporter.create(loadAllLines(file)).get();
+      case LEDGER_ACCOUNT_LISTING:
+        return LedgerAccountListingImporter.create(loadAllLines(file)).get();
+    }
+    // If we don't have an importer for this file type, that's really not good. Just exit
+    // immediately.
+    System.err.println("Cannot handle file type: " + fileType.toString());
+    System.exit(1);
+    return ModelGenerator.empty();
+  }
+
+  private static void verifyFileExistsOrDie(File file, String messageOnDeath) {
+    if (!file.exists() || !file.isFile()) {
+      System.err.println(messageOnDeath);
+      System.err.println("Exiting.");
+      System.exit(1);
+    }
+  }
+
+  private void run() throws Exception {
+    if (help) {
+      StringBuilder usageStringBuilder = new StringBuilder();
+      JCommander.newBuilder().addObject(this).build().getUsageFormatter().usage(usageStringBuilder);
+      System.err.print(usageStringBuilder);
+      System.exit(1);
+    }
     File ledgerFile = new File(outputFileName);
     if (ledgerFile.exists()) {
       System.err.println("The passed in output file (" + outputFileName + ") already exists!");
@@ -97,33 +152,30 @@ public class CsvMatcher {
     }
 
     File mappingFile = new File(descToAccountTsvFileName);
-    verifyFileOrDie(
+    verifyFileExistsOrDie(
         mappingFile,
-        /* shouldExist= */ true,
         "The passed in TSV \"Transaction Desc\tAccount Name\\n\" file name \""
             + descToAccountTsvFileName
             + "\" does not refer to a file that exists.");
-    Model model =
+    JcfModel.Model matchModel =
         extractModelFrom(mappingFile, FileType.TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING);
 
     if (!ledgerAccountListingFileName.isEmpty()) {
       File ledgerAccountListingFile = new File(ledgerAccountListingFileName);
-      verifyFileOrDie(
+      verifyFileExistsOrDie(
           mappingFile,
-          /* shouldExist= */ true,
           "The passed in ledger-format account listing file name \""
               + ledgerAccountListingFile
               + "\" does not refer to a file that exists.");
-      Model allAccounts =
+      JcfModel.Model allAccounts =
           extractModelFrom(ledgerAccountListingFile, FileType.LEDGER_ACCOUNT_LISTING);
-      model = model.mergedWith(allAccounts);
+      matchModel = ModelGenerator.merge(allAccounts, matchModel);
     }
-    SplitMatcher matcher = SplitMatcher.create(model);
+    SplitMatcher matcher = SplitMatcher.create(matchModel);
 
     File csvFile = new File(csvFileName);
-    verifyFileOrDie(
+    verifyFileExistsOrDie(
         csvFile,
-        /* shouldExist= */ true,
         "The passed in transaction CSV file ("
             + csvFileName
             + ") does not refer to a file that exists.");
@@ -176,7 +228,8 @@ public class CsvMatcher {
                         List<String> fields =
                             Splitter.on(',').trimResults().omitEmptyStrings().splitToList(line);
                         if (!finalCsvFieldPositions.containsKey(CsvField.DATE)
-                            || finalCsvFieldPositions.get(CsvField.DATE) >= fields.size()) {
+                            || finalCsvFieldPositions.get(CsvField.DATE) >= fields.size()
+                            || finalCsvFieldPositions.get(CsvField.DATE) < 0) {
                           return null;
                         } else {
                           return fields.get(finalCsvFieldPositions.get(CsvField.DATE));
@@ -201,7 +254,10 @@ public class CsvMatcher {
     Account fromAccount =
         accountName.equals(UNSET)
             ? PromptEvaluator.showAndGetResult(
-                TerminalProvider.get(), AccountPickerPrompt.create(model.accountsById))
+                TerminalProvider.get(),
+                PromptDecorator.decorateWithStatusBars(
+                    AccountPickerPrompt.create(matchModel.getAccountList()),
+                    ImmutableList.of("Please choose the account this CSV file represents.")))
             : dummyAccount(accountName);
 
     if (fromAccount == null) {
@@ -209,33 +265,13 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    Model modelToMatch =
-        createModelFromCsv(csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
-    SplitMatcherScreen.start(matcher, modelToMatch, model.accountsById.values());
-    LedgerExportScreen.start(
-        Iterables.getOnlyElement(ModelManager.getUnmergedModels()),
-        new FileOutputStream(ledgerFile));
-  }
-
-  private static ImmutableList<String> loadAllLines(File file) {
-    try {
-      return ImmutableList.copyOf(lineByLineIterator(file));
-    } catch (IOException e) {
-      System.err.println("IOException occured while loading file: " + file.getAbsolutePath());
-      System.err.println(e.toString());
-      System.exit(1);
-    }
-    return ImmutableList.of();
-  }
-
-  private static Iterator<String> lineByLineIterator(File csvFile) throws IOException {
-    Scanner csvFileScanner = new Scanner(csvFile);
-    return new AbstractIterator<String>() {
-      @Override
-      protected String computeNext() {
-        return csvFileScanner.hasNextLine() ? csvFileScanner.nextLine() : endOfData();
-      }
-    };
+    Model model =
+        CsvTransactionListingImporter.create(
+                csvFile, csvFieldPositions, dateTimeFormatter, fromAccount)
+            .get();
+    Model modelToExport =
+        SplitMatcherScreen.start(matcher, IndexedModel.create(model), matchModel.getAccountList());
+    LedgerExportScreen.start(IndexedModel.create(modelToExport), new FileOutputStream(ledgerFile));
   }
 
   private String getFirstLineOf(File csvFile) throws FileNotFoundException {
@@ -243,113 +279,6 @@ public class CsvMatcher {
       throw new FileNotFoundException("Can't get first line of file: " + csvFile.getAbsolutePath());
     }
     return new Scanner(csvFile).nextLine();
-  }
-
-  private static Account dummyAccount(String accountName) {
-    return Account.newBuilder()
-        .setId(accountName)
-        .setName(accountName)
-        .setType(Account.Type.UNKNOWN_TYPE)
-        .build();
-  }
-
-  private static Model extractModelFrom(File file, FileType fileType) {
-    switch (fileType) {
-      case TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING:
-        return new TsvTransactionDescAccountMappingImporter().importFrom(loadAllLines(file));
-      case LEDGER_ACCOUNT_LISTING:
-        return new LedgerAccountListingImporter().importFrom(loadAllLines(file));
-    }
-    // If we don't have an importer for this file type, that's really not good. Just exit
-    // immediately.
-    System.err.println("Cannot handle file type: " + fileType.toString());
-    System.exit(1);
-    return Model.empty();
-  }
-
-  private static Model createModelFromCsv(
-      File csvFile,
-      ImmutableMap<CsvField, Integer> csvFieldPositions,
-      DateTimeFormatter dateTimeFormatter,
-      Account fromAccount)
-      throws FileNotFoundException {
-    int maxFieldPosition = csvFieldPositions.values().stream().max(Integer::compareTo).get();
-    Scanner scanner = new Scanner(csvFile);
-    int numFields = 0;
-    if (!scanner.hasNextLine()) {
-      System.err.println("The CSV file had no lines... Exiting.");
-      System.exit(1);
-    }
-    numFields = Iterables.size(CSV_SPLITTER.split(scanner.nextLine()));
-    if (numFields <= maxFieldPosition) {
-      System.err.println(
-          "The specified field positions ("
-              + csvFieldPositions
-              + " did not match the CSV format which had "
-              + numFields
-              + " fields. Exiting,");
-      System.exit(1);
-    }
-    List<Transaction> transactions = new ArrayList<>();
-    List<Split> splits = new ArrayList<>();
-    int id = 0;
-    while (scanner.hasNextLine()) {
-      String line = scanner.nextLine();
-      List<String> pieces = CSV_SPLITTER.splitToList(line);
-      if (pieces.size() != numFields) {
-        System.err.println(
-            "Line had "
-                + pieces.size()
-                + " fields but expected "
-                + numFields
-                + ". Skipping it: "
-                + line);
-        continue;
-      }
-      Instant date =
-          Formatter.parseDateFrom(
-              pieces.get(csvFieldPositions.get(CsvField.DATE)), dateTimeFormatter);
-      String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
-      int valueNumerator = 0;
-      int valueDenominator = 100;
-      if (csvFieldPositions.get(CsvField.AMOUNT) != -1) {
-        valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.AMOUNT)));
-      } else if (pieces.get(csvFieldPositions.get(CsvField.DEBIT)).isEmpty()) {
-        valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.CREDIT)));
-      } else {
-        valueNumerator =
-            -1 * parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.DEBIT)));
-      }
-      Transaction transaction =
-          Transaction.newBuilder()
-              .setId(String.valueOf(id++))
-              .setPostDateEpochSecond(date.getEpochSecond())
-              .setDescription(desc)
-              .build();
-      transactions.add(transaction);
-      splits.add(
-          Split.newBuilder()
-              .setAccountId(fromAccount.getId())
-              .setTransactionId(transaction.getId())
-              .setValueNumerator(valueNumerator)
-              .setValueDenominator(valueDenominator)
-              .build());
-    }
-    return new Model(ImmutableList.of(fromAccount), transactions, splits);
-  }
-
-  private static int parseDollarValueAsCents(String dollarValueString) {
-    return Integer.parseInt(dollarValueString.replace(".", ""));
-  }
-
-  private static void verifyFileOrDie(File file, boolean shouldExist, String messageOnDeath) {
-    if (!file.exists() || !file.isFile()) {
-      System.err.println(messageOnDeath);
-      System.err.println("Exiting.");
-      System.exit(1);
-    }
   }
 
   public enum CsvField {

@@ -51,12 +51,13 @@ public class AccountPickerPrompt implements Prompt<Account> {
     }
   }
 
-  public static AccountPickerPrompt create(Map<String, Account> accountsById) {
-    return new AccountPickerPrompt(accountsById);
+  public static AccountPickerPrompt create(Iterable<Account> accountsById) {
+    return new AccountPickerPrompt(Maps.uniqueIndex(accountsById, Account::getId));
   }
 
   @Override
   public Optional<Account> transform(String input) {
+    input = input.trim();
     if (GO_UP.equals(input)) {
       if (accountStack.size() > 1) {
         accountStack.pollLast();
@@ -65,6 +66,9 @@ public class AccountPickerPrompt implements Prompt<Account> {
     }
     if (THIS_ACCOUNT.equals(input)) {
       return Optional.of(accountStack.getLast());
+    }
+    if (this.accountsByName.containsKey(input)) {
+      return Optional.of(accountsByName.get(input));
     }
     ImmutableList<Account> children =
         childrenByParentId.get(accountStack.getLast().getId()).asList();
@@ -128,6 +132,11 @@ public class AccountPickerPrompt implements Prompt<Account> {
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
     return accountsByName.keySet();
+  }
+
+  @Override
+  public boolean shouldClearScreen() {
+    return false;
   }
 
   private Account currentAccount() {

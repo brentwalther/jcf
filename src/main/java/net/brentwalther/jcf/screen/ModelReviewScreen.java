@@ -6,28 +6,28 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
+import com.google.common.collect.Multiset.Entry;
 import com.google.common.collect.Multisets;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
+import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.ModelManager;
+import net.brentwalther.jcf.model.ModelValidations;
 import net.brentwalther.jcf.prompt.FilePrompt;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.util.ModelUtil;
 import org.jline.terminal.Terminal;
 
 import java.io.File;
-import java.math.BigDecimal;
+import java.util.Comparator;
 
 class ModelReviewScreen {
 
@@ -40,22 +40,22 @@ class ModelReviewScreen {
           .put("Export expenses to CSV", Screen.CSV_EXPORT)
           .build();
 
-  static void start(Model model) {
-
+  static IndexedModel start(IndexedModel indexedModel) {
     ImmutableList<String> optionNames = OPTIONS.keySet().asList();
 
     Terminal terminal = TerminalProvider.get();
     int maxWidth = terminal.getWidth();
 
+    ImmutableList<Account> allAccounts = indexedModel.getAllAccounts().asList();
     String accountList =
-        "- Accounts: "
-            + Joiner.on(", ")
-                .join(Lists.transform(model.accountsById.values().asList(), Account::getName));
+        "- Accounts: " + Joiner.on(", ").join(Lists.transform(allAccounts, Account::getName));
     String transactionOverview =
         "- "
-            + model.transactionsById.size()
+            + indexedModel.getTransactionCount()
             + " transactions, of which "
-            + getImbalancedTransactionIds(model.splitsByTransactionId).size()
+            + getImbalancedTransactionIds(
+                    Multimaps.index(indexedModel.getAllSplits(), Split::getTransactionId))
+                .size()
             + " are imbalanced.";
     ImmutableList<String> prefaces =
         ImmutableList.of(
@@ -73,56 +73,52 @@ class ModelReviewScreen {
                       .withDefaultOption(1)
                       .withPrefaces(prefaces)
                       .build(),
-                  ImmutableList.of("Reviewing: " + model)));
+                  ImmutableList.of("Reviewing: " + indexedModel)));
 
       if (selectedOption == null) {
-        return;
+        return indexedModel;
       }
     } while (selectedOption.type == OptionsPrompt.ChoiceType.EMPTY);
 
     // Assume the option is numeric since we didn't pass in autocomplete options.
     switch (OPTIONS.get(optionNames.get(selectedOption.numberChoice))) {
       case MATCH_SPLITS:
-        SplitMatcherScreen.start(
-            SplitMatcher.create(ModelManager.getCurrentModel()),
-            model,
-            ModelManager.getCurrentModel().accountsById.values());
-        break;
-      case MERGE_MODEL:
-        ModelMergerScreen.start(model);
-        break;
+        return IndexedModel.create(
+            SplitMatcherScreen.start(
+                SplitMatcher.create(indexedModel), indexedModel, indexedModel.getAllAccounts()));
       case EXPORT_MODEL:
         File modelFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
         if (modelFile != null && modelFile.exists()) {
-          JcfExportScreen.start(model, modelFile);
+          JcfExportScreen.start(indexedModel.toProto(), modelFile);
         }
         break;
       case CSV_EXPORT:
-        Multiset<Account> accountCounts =
+        Multiset<String> accountIdCounts =
             HashMultiset.create(
-                FluentIterable.from(model.splitsByTransactionId.values())
-                    .transform((split) -> model.accountsById.get(split.getAccountId())));
-        Account mostFrequentlyOccuringAccount =
-            Iterables.getFirst(Multisets.copyHighestCountFirst(accountCounts), null);
-        if (mostFrequentlyOccuringAccount == null
-            || accountCounts.count(mostFrequentlyOccuringAccount)
-                != model.transactionsById.size()) {
+                FluentIterable.from(indexedModel.getAllSplits())
+                    .transform((split) -> split.getAccountId()));
+        Entry<String> mostFrequentlyOccurringAccountId =
+            accountIdCounts.entrySet().stream()
+                .max(Comparator.comparingInt(Entry::getCount))
+                .orElse(Multisets.immutableEntry("", 0));
+        if (mostFrequentlyOccurringAccountId.getCount() != indexedModel.getTransactionCount()) {
           PromptEvaluator.showAndGetResult(
               TerminalProvider.get(),
               NoticePrompt.withMessages(
                   ImmutableList.of(
-                      "The most frequently occuring account in this model is "
-                          + mostFrequentlyOccuringAccount.getName(),
-                      " however, that account doesn't appear in every split which makes this",
-                      " export ambiguous. Please only export CSVs from a model created from a single account")));
+                      "This model cannot be exported to CSV unambiguously. There must at least *one* account",
+                      "that splits every transaction (the primary 'source' of these transactions).",
+                      "Please only export CSVs from a model created from a single account")));
         } else {
+          Account mostFrequentlyOccurringAccount =
+              indexedModel.getAccountById(mostFrequentlyOccurringAccountId.getElement());
           File csvFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
           if (csvFile != null && csvFile.exists()) {
             CsvExportScreen.start(
-                model,
+                indexedModel,
                 csvFile,
                 /* filters= */ ImmutableList.of(
-                    exportItem -> exportItem.account().equals(mostFrequentlyOccuringAccount),
+                    exportItem -> exportItem.account().equals(mostFrequentlyOccurringAccount),
                     exportItem ->
                         !exportItem.account().getType().equals(JcfModel.Account.Type.EXPENSE)));
           }
@@ -131,6 +127,7 @@ class ModelReviewScreen {
       case EXIT:
         break;
     }
+    return indexedModel;
   }
 
   private static ImmutableSet<String> getImbalancedTransactionIds(
@@ -138,11 +135,7 @@ class ModelReviewScreen {
     ImmutableSet.Builder<String> imbalancedTransactionIds = ImmutableSet.builder();
     for (String id : splitsByTransactionId.keySet()) {
       boolean isBalanced =
-          splitsByTransactionId.get(id).stream()
-                  .map(ModelUtil::toBigDecimal)
-                  .reduce(BigDecimal.ZERO, BigDecimal::add)
-                  .compareTo(BigDecimal.ZERO)
-              == 0;
+          ModelValidations.areSplitsBalanced(splitsByTransactionId.get(id).stream());
       if (!isBalanced) {
         imbalancedTransactionIds.add(id);
       }

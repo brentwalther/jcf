@@ -10,7 +10,7 @@ public class NoticePrompt implements Prompt<Object> {
 
   private final ImmutableList<String> messages;
 
-  public NoticePrompt(ImmutableList<String> messages) {
+  private NoticePrompt(ImmutableList<String> messages) {
     this.messages = messages;
   }
 
@@ -41,5 +41,10 @@ public class NoticePrompt implements Prompt<Object> {
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
     return ImmutableSet.of();
+  }
+
+  @Override
+  public boolean shouldClearScreen() {
+    return false;
   }
 }

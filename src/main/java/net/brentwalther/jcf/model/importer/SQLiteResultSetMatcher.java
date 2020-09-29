@@ -29,7 +29,7 @@ class SQLiteResultSetMatcher {
     }
     return requiredFields.stream()
         .map(SQLiteConnector.Field::getColumnName)
-        .allMatch((requiredField) -> columnNames.containsKey(requiredField));
+        .allMatch(columnNames::containsKey);
   }
 
   private ImmutableMap<String, Integer> getColumnIndicesByName(ResultSetMetaData metaData)

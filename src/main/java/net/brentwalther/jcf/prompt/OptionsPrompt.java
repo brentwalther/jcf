@@ -68,6 +68,11 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
   }
 
   @Override
+  public boolean shouldClearScreen() {
+    return false;
+  }
+
+  @Override
   public Optional<Choice> transform(String input) {
     input = input.trim();
     if (autoCompleteOptions.contains(input)) {

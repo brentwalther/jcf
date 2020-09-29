@@ -1,10 +1,12 @@
 package net.brentwalther.jcf.model.importer;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -12,16 +14,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TsvTransactionDescAccountMappingImporter {
+public class TsvTransactionDescAccountMappingImporter implements JcfModelImporter {
 
   private static final Splitter TSV_SPLITTER = Splitter.on('\t');
 
-  public Model importFrom(Iterable<String> lineIterator) {
+  private final ImmutableList<String> tsvLines;
+
+  private TsvTransactionDescAccountMappingImporter(ImmutableList<String> tsvLines) {
+    this.tsvLines = tsvLines;
+  }
+
+  public static TsvTransactionDescAccountMappingImporter create(ImmutableList<String> tsvLines) {
+    return new TsvTransactionDescAccountMappingImporter(tsvLines);
+  }
+
+  public JcfModel.Model get() {
     Map<String, Account> accountsById = new HashMap<>();
     List<Transaction> transactions = new ArrayList<>();
     List<Split> splits = new ArrayList<>();
     int id = 0;
-    for (String line : lineIterator) {
+    for (String line : tsvLines) {
       List<String> pieces = TSV_SPLITTER.splitToList(line);
       if (pieces.size() != 2) {
         System.err.println(
@@ -50,6 +62,6 @@ public class TsvTransactionDescAccountMappingImporter {
               .setValueDenominator(1)
               .build());
     }
-    return new Model(accountsById.values(), transactions, splits);
+    return ModelGenerator.create(accountsById.values(), transactions, splits);
   }
 }

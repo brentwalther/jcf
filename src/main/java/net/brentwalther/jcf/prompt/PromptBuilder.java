@@ -63,6 +63,11 @@ public class PromptBuilder<T> {
       public ImmutableSet<String> getAutoCompleteOptions() {
         return ImmutableSet.of();
       }
+
+      @Override
+      public boolean shouldClearScreen() {
+        return false;
+      }
     };
   }
 }

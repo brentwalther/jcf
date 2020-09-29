@@ -85,6 +85,11 @@ public class FieldPositionChooser {
                   .withAutoCompleteOptions(Lists.transform(assignmentOptions, Objects::toString))
                   .build());
 
+      if (assignment == null) {
+        // The user may have chosen the wrong column. Skip this assignment.
+        continue;
+      }
+
       CsvMatcher.CsvField assignedField = null;
       switch (assignment.type) {
         case NUMBERED_OPTION:

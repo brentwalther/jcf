@@ -3,30 +3,33 @@ package net.brentwalther.jcf.prompt;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.IndexedModel;
 import org.jline.terminal.Size;
 
+import java.util.List;
 import java.util.Optional;
 
-public class ModelPickerPrompt implements Prompt<Model> {
+public class ModelPickerPrompt implements Prompt<IndexedModel> {
   private final OptionsPrompt optionsPrompt;
-  private final ImmutableList<Model> modelOptions;
+  private final ImmutableList<IndexedModel> modelGeneratorOptions;
 
-  private ModelPickerPrompt(ImmutableList<Model> modelOptions) {
-    this.optionsPrompt = OptionsPrompt.create(Lists.transform(modelOptions, Model::toString));
-    this.modelOptions = modelOptions;
+  private ModelPickerPrompt(ImmutableList<IndexedModel> modelGeneratorOptions) {
+    this.optionsPrompt =
+        OptionsPrompt.create(
+            Lists.transform(modelGeneratorOptions, IndexedModel::stableIdentifier));
+    this.modelGeneratorOptions = modelGeneratorOptions;
   }
 
-  public static Prompt<Model> create(ImmutableList<Model> modelOptions) {
-    return new ModelPickerPrompt(modelOptions);
+  public static Prompt<IndexedModel> create(List<IndexedModel> modelGeneratorOptions) {
+    return new ModelPickerPrompt(ImmutableList.copyOf(modelGeneratorOptions));
   }
 
   @Override
-  public Optional<Model> transform(String input) {
+  public Optional<IndexedModel> transform(String input) {
     Optional<OptionsPrompt.Choice> selectedOption = optionsPrompt.transform(input);
     if (selectedOption.isPresent() && selectedOption.get().type != OptionsPrompt.ChoiceType.EMPTY) {
       // Assume the choice will always be a number.
-      return Optional.of(modelOptions.get(selectedOption.get().numberChoice));
+      return Optional.of(modelGeneratorOptions.get(selectedOption.get().numberChoice));
     }
     return Optional.empty();
   }
@@ -49,5 +52,10 @@ public class ModelPickerPrompt implements Prompt<Model> {
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
     return ImmutableSet.of();
+  }
+
+  @Override
+  public boolean shouldClearScreen() {
+    return false;
   }
 }

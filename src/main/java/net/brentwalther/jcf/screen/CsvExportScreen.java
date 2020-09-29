@@ -4,14 +4,14 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import net.brentwalther.jcf.TerminalProvider;
+import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
-import net.brentwalther.jcf.util.ModelUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,20 +24,21 @@ import java.util.List;
 
 public class CsvExportScreen {
 
-  public static void start(Model model, File csvFile, Iterable<ExportFilter> filters) {
+  public static void start(
+      IndexedModel indexedModel, File csvFile, Iterable<ExportFilter> filters) {
     try {
       List<ExportItem> exportItems = new ArrayList<>();
-      for (Split split : model.splitsByTransactionId.values()) {
+      for (Split split : indexedModel.getAllSplits()) {
         ExportItem exportItem =
             new ExportItem() {
               @Override
               public Account account() {
-                return model.accountsById.get(split.getAccountId());
+                return indexedModel.getAccountById(split.getAccountId());
               }
 
               @Override
               public Transaction transaction() {
-                return model.transactionsById.get(split.getTransactionId());
+                return indexedModel.getTransactionById(split.getTransactionId());
               }
 
               @Override
@@ -66,7 +67,7 @@ public class CsvExportScreen {
                     Formatter.date(
                         Instant.ofEpochSecond(exportItem.transaction().getPostDateEpochSecond()))),
                 quote(exportItem.account().getName()),
-                quote(Formatter.currency(ModelUtil.toBigDecimal(exportItem.split())))));
+                quote(Formatter.currency(ModelGenerator.bigDecimalForSplit(exportItem.split())))));
       }
       printWriter.flush();
       printWriter.close();
@@ -75,7 +76,7 @@ public class CsvExportScreen {
           TerminalProvider.get(),
           NoticePrompt.withMessages(
               ImmutableList.of(
-                  "Failed to export model " + model,
+                  "Failed to export model " + indexedModel,
                   "  to file: " + csvFile.getAbsolutePath(),
                   "  due to exception: " + e)));
     }

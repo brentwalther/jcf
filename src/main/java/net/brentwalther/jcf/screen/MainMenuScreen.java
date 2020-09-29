@@ -3,9 +3,11 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import net.brentwalther.jcf.TerminalProvider;
+import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.ModelManager;
+import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.importer.SQLiteConnector;
 import net.brentwalther.jcf.prompt.FilePrompt;
 import net.brentwalther.jcf.prompt.ModelPickerPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
@@ -16,6 +18,8 @@ import org.jline.terminal.Terminal;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainMenuScreen {
 
@@ -29,15 +33,15 @@ public class MainMenuScreen {
           .put("Exit application", Screen.EXIT)
           .build();
 
-  public static void start() {
+  public static void start(JcfModel.Model initialModel) {
     Terminal terminal = TerminalProvider.get();
     ImmutableList<String> options = MAIN_MENU_OPTIONS.keySet().asList();
 
+    Model currentModel = initialModel;
+    List<IndexedModel> unmergedModels = new ArrayList<>();
     while (true) {
       ImmutableList<String> statusBars =
-          ImmutableList.of(
-              "Current model: " + ModelManager.getCurrentModel().toString(),
-              "Unmerged imports: " + ModelManager.getUnmergedModels().size());
+          ImmutableList.of("Unmerged imports: " + unmergedModels.size());
       OptionsPrompt.Choice selectedOption =
           PromptEvaluator.showAndGetResult(
               terminal,
@@ -54,28 +58,28 @@ public class MainMenuScreen {
         case LOAD_SQLITE:
           File sqliteFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.existingFile());
           if (sqliteFile != null) {
-            SQLiteImportScreen.start(sqliteFile);
+            currentModel = SQLiteConnector.create(sqliteFile).get();
           }
           break;
         case LOAD_OFX:
           File ofxFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.existingFile());
           if (ofxFile != null) {
-            OFXImportScreen.start(ofxFile);
+            unmergedModels.add(IndexedModel.create(OFXImportScreen.start(ofxFile)));
           }
           break;
         case REVIEW_UNMERGED_MODELS:
-          Model modelToReview =
-              PromptEvaluator.showAndGetResult(
-                  terminal, ModelPickerPrompt.create(ModelManager.getUnmergedModels()));
+          IndexedModel modelToReview =
+              PromptEvaluator.showAndGetResult(terminal, ModelPickerPrompt.create(unmergedModels));
           if (modelToReview != null) {
-            ModelReviewScreen.start(modelToReview);
+            unmergedModels.remove(modelToReview);
+            unmergedModels.add(ModelReviewScreen.start(modelToReview));
           }
           break;
         case CSV_EXPORT:
           File csvFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
           if (csvFile != null && csvFile.exists()) {
             CsvExportScreen.start(
-                ModelManager.getCurrentModel(),
+                IndexedModel.create(currentModel),
                 csvFile,
                 /* filters= */ ImmutableList.of(
                     exportItem -> !exportItem.account().getType().equals(Account.Type.EXPENSE)));
@@ -86,7 +90,7 @@ public class MainMenuScreen {
           if (ledgerFile != null && ledgerFile.exists()) {
             try {
               LedgerExportScreen.start(
-                  ModelManager.getCurrentModel(), new FileOutputStream(ledgerFile));
+                  IndexedModel.create(currentModel), new FileOutputStream(ledgerFile));
             } catch (FileNotFoundException e) {
               // Print an error.
             }

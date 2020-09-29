@@ -3,8 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.CodedOutputStream;
 import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.JcfModel;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 
@@ -16,12 +15,7 @@ import java.io.IOException;
 public class JcfExportScreen {
   public static void start(Model model, File file) {
     try {
-      JcfModel.Model.newBuilder()
-          .addAllAccount(model.accountsById.values())
-          .addAllTransaction(model.transactionsById.values())
-          .addAllSplit(model.splitsByTransactionId.values())
-          .build()
-          .writeTo(CodedOutputStream.newInstance(new FileOutputStream(file)));
+      model.writeTo(CodedOutputStream.newInstance(new FileOutputStream(file)));
     } catch (IOException e) {
       PromptEvaluator.showAndGetResult(
           TerminalProvider.get(),

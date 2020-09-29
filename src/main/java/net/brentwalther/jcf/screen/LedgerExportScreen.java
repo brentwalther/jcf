@@ -4,12 +4,12 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import net.brentwalther.jcf.TerminalProvider;
+import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.util.Formatter;
-import net.brentwalther.jcf.util.ModelUtil;
 import org.jline.reader.impl.LineReaderImpl;
 import org.jline.terminal.Terminal;
 
@@ -27,10 +27,10 @@ public class LedgerExportScreen {
 
   private static final String ACCOUNT_DELIMITER = ":";
 
-  public static void start(Model currentModel, OutputStream outputStream) {
+  public static void start(IndexedModel indexedModel, OutputStream outputStream) {
     // First produce a map of accounts to names like Assets:Investments:VTSAX
     Map<String, String> accountIdToFullString = new HashMap<>();
-    for (Account account : currentModel.accountsById.values()) {
+    for (Account account : indexedModel.getAllAccounts()) {
       if (accountIdToFullString.containsKey(account.getParentId())) {
         accountIdToFullString.put(
             account.getId(),
@@ -43,9 +43,11 @@ public class LedgerExportScreen {
         String originalId = account.getId();
         List<String> names = new ArrayList<>(4);
         names.add(account.getName());
-        while (!account.getParentId().isEmpty()
-            && currentModel.accountsById.containsKey(account.getParentId())) {
-          account = currentModel.accountsById.get(account.getParentId());
+        while (!account.getParentId().isEmpty()) {
+          account = indexedModel.getAccountById(account.getParentId());
+          if (account.getName().isEmpty()) {
+            break;
+          }
           names.add(account.getName());
         }
         accountIdToFullString.put(
@@ -58,7 +60,7 @@ public class LedgerExportScreen {
 
     Terminal terminal = TerminalProvider.get();
     try (PrintWriter writer = new PrintWriter(outputStream)) {
-      List<Transaction> transactions = new ArrayList<>(currentModel.transactionsById.values());
+      List<Transaction> transactions = new ArrayList<>(indexedModel.getAllTransactions());
       transactions.sort(Comparator.comparingLong(Transaction::getPostDateEpochSecond));
       for (Transaction transaction : transactions) {
         writer.println(
@@ -66,15 +68,14 @@ public class LedgerExportScreen {
                 + " * "
                 + transaction.getDescription());
 
-        List<Split> splits =
-            new ArrayList<>(currentModel.splitsByTransactionId.get(transaction.getId()));
-        splits.sort(Ordering.natural().reverse().onResultOf(ModelUtil::toBigDecimal));
+        List<Split> splits = new ArrayList<>(indexedModel.splitsForTransaction(transaction));
+        splits.sort(Ordering.natural().reverse().onResultOf(ModelGenerator::bigDecimalForSplit));
         for (Split split : splits) {
           writer.println(
               "  "
                   + padString(
                       accountIdToFullString.get(split.getAccountId()), maxAccountNameLength + 2)
-                  + Formatter.ledgerCurrency(ModelUtil.toBigDecimal(split)));
+                  + Formatter.ledgerCurrency(ModelGenerator.bigDecimalForSplit(split)));
         }
         writer.println();
       }

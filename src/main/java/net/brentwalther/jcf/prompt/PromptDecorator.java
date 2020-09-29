@@ -19,7 +19,10 @@ public class PromptDecorator<T> implements Prompt<T> {
     return new PromptDecorator<T>(prompt) {
       @Override
       public ImmutableList<String> getStatusBars() {
-        return statusBars;
+        return ImmutableList.<String>builder()
+            .addAll(statusBars)
+            .addAll(prompt.getStatusBars())
+            .build();
       }
     };
   }
@@ -47,5 +50,10 @@ public class PromptDecorator<T> implements Prompt<T> {
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
     return delegate.getAutoCompleteOptions();
+  }
+
+  @Override
+  public boolean shouldClearScreen() {
+    return delegate.shouldClearScreen();
   }
 }

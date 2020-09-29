@@ -2,6 +2,7 @@ package net.brentwalther.jcf.screen;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.FluentLogger;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.Prompt;
@@ -16,9 +17,16 @@ import java.util.Optional;
 
 public class DateTimeFormatChooser {
 
+  private static final FluentLogger logger = FluentLogger.forEnclosingClass();
+
   @Nullable
   public static DateTimeFormatter obtainFormatForExamples(Iterable<String> examples) {
     ImmutableList<String> exampleData = ImmutableList.copyOf(examples);
+
+    if (exampleData.isEmpty()) {
+      logger.atWarning().log("Could not obtain a date format because there were no examples!");
+      return null;
+    }
 
     Prompt<String> optionsPrompt =
         PromptBuilder.<String>create()

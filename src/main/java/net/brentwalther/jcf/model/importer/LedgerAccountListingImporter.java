@@ -1,13 +1,25 @@
 package net.brentwalther.jcf.model.importer;
 
 import com.google.common.collect.ImmutableList;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 
-public class LedgerAccountListingImporter {
+public class LedgerAccountListingImporter implements JcfModelImporter {
+
   private static final String ACCOUNT_NAME_PREFIX = "account ";
 
-  public Model importFrom(ImmutableList<String> ledgerAccountListings) {
+  private final ImmutableList<String> ledgerAccountListings;
+
+  private LedgerAccountListingImporter(ImmutableList<String> ledgerAccountListings) {
+    this.ledgerAccountListings = ledgerAccountListings;
+  }
+
+  public static LedgerAccountListingImporter create(ImmutableList<String> ledgerAccountListings) {
+    return new LedgerAccountListingImporter(ledgerAccountListings);
+  }
+
+  public JcfModel.Model get() {
     ImmutableList.Builder<Account> accountListBuilder =
         ImmutableList.builderWithExpectedSize(ledgerAccountListings.size());
     for (String ledgerAccountListing : ledgerAccountListings) {
@@ -24,6 +36,6 @@ public class LedgerAccountListingImporter {
               .setType(Account.Type.UNKNOWN_TYPE)
               .build());
     }
-    return Model.createForAccounts(accountListBuilder.build());
+    return ModelGenerator.createForAccounts(accountListBuilder.build());
   }
 }

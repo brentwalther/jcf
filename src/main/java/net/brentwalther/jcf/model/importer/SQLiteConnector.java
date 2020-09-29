@@ -8,7 +8,7 @@ import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 
 import java.io.File;
 import java.sql.Connection;
@@ -24,15 +24,19 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SQLiteConnector {
+public class SQLiteConnector implements JcfModelImporter {
 
   private final File sqliteDatabase;
 
-  public SQLiteConnector(File sqliteDatabase) {
+  private SQLiteConnector(File sqliteDatabase) {
     this.sqliteDatabase = sqliteDatabase;
   }
 
-  public Model extract() {
+  public static SQLiteConnector create(File sqliteDatabase) {
+    return new SQLiteConnector(sqliteDatabase);
+  }
+
+  public JcfModel.Model get() {
     Connection connection = null;
     try {
       // create a database connection
@@ -113,13 +117,14 @@ public class SQLiteConnector {
         System.err.println("Could not initialize transactions. Matcher did not match.");
       }
 
-      return new Model(accountsById, transactionsById, splitsByTransactionId);
+      return ModelGenerator.create(
+          accountsById.values(), transactionsById.values(), splitsByTransactionId.values());
 
     } catch (SQLException e) {
       // if the error message is "out of memory",
       // it probably means no database file is found
       System.err.println(e.getMessage());
-      return Model.empty();
+      return ModelGenerator.empty();
     } finally {
       try {
         if (connection != null) {
@@ -128,7 +133,7 @@ public class SQLiteConnector {
       } catch (SQLException e) {
         // connection close failed.
         System.err.println(e.getMessage());
-        return Model.empty();
+        return ModelGenerator.empty();
       }
     }
   }

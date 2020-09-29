@@ -5,10 +5,10 @@ import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
+import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,20 +28,30 @@ public class SplitMatcher {
     matches = new HashMap<>();
   }
 
-  public static SplitMatcher create() {
-    return new SplitMatcher();
+  public static SplitMatcher create(JcfModel.Model proto) {
+    return create(IndexedModel.create(proto));
   }
 
-  public static SplitMatcher create(Model model) {
-    SplitMatcher matcher = create();
-    Map<String, Transaction> transactions = model.transactionsById;
-    Map<String, Account> accounts = model.accountsById;
-    for (Split split : model.splitsByTransactionId.values()) {
+  public static SplitMatcher create(IndexedModel model) {
+    SplitMatcher matcher = new SplitMatcher();
+    for (Split split : model.getAllSplits()) {
       matcher.link(
-          accounts.get(split.getAccountId()),
-          transactions.get(split.getTransactionId()).getDescription());
+          model.getAccountById(split.getAccountId()),
+          model.getTransactionById(split.getTransactionId()).getDescription());
     }
     return matcher;
+  }
+
+  /** Returns the string with junk removed. */
+  private static String sanitize(String s) {
+    s = DOT_COM_PATTERN.matcher(s).replaceAll("");
+    s = REPEATED_DIGITS_PATTERN.matcher(s).replaceAll("");
+    return NON_ALPHANUM_CHAR_PATTERN.matcher(s).replaceAll(" ");
+  }
+
+  private static Iterable<String> tokenize(String s) {
+    // Return the split tokens. The splitter throws out empty strings.
+    return SPACE_SPLITTER.split(s);
   }
 
   /** Link the account to the associated transactions description string. */
@@ -81,17 +91,5 @@ public class SplitMatcher {
     matches.removeAll(accountsToExclude);
     return ImmutableList.sortedCopyOf(
         Comparator.comparingInt(matches::count).reversed(), matches.elementSet());
-  }
-
-  /** Returns the string with junk removed. */
-  private static String sanitize(String s) {
-    s = DOT_COM_PATTERN.matcher(s).replaceAll("");
-    s = REPEATED_DIGITS_PATTERN.matcher(s).replaceAll("");
-    return NON_ALPHANUM_CHAR_PATTERN.matcher(s).replaceAll(" ");
-  }
-
-  private static Iterable<String> tokenize(String s) {
-    // Return the split tokens. The splitter throws out empty strings.
-    return SPACE_SPLITTER.split(s);
   }
 }

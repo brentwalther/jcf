@@ -12,7 +12,7 @@ public class FilePrompt implements Prompt<File> {
 
   private final boolean mustExist;
 
-  public FilePrompt(boolean mustExist) {
+  private FilePrompt(boolean mustExist) {
     this.mustExist = mustExist;
   }
 
@@ -32,6 +32,11 @@ public class FilePrompt implements Prompt<File> {
   @Override
   public ImmutableSet<String> getAutoCompleteOptions() {
     return ImmutableSet.of();
+  }
+
+  @Override
+  public boolean shouldClearScreen() {
+    return false;
   }
 
   @Override

@@ -8,17 +8,17 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
+import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
-import net.brentwalther.jcf.model.ModelManager;
+import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
-import net.brentwalther.jcf.util.ModelUtil;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -30,18 +30,17 @@ public class SplitMatcherScreen {
   private static final Account UNSELECTED_ACCOUNT =
       Account.newBuilder().setId("UNMATCHED").setName("IMBALANCE").build();
 
-  public static void start(
-      SplitMatcher splitMatcher, Model model, Iterable<Account> allKnownAccounts) {
-    ModelManager.removeModel(model);
-    Account account = Iterables.getOnlyElement(model.accountsById.values());
-    int totalMatchesToMake = model.transactionsById.size();
+  public static Model start(
+      SplitMatcher splitMatcher, IndexedModel indexedModel, Iterable<Account> allKnownAccounts) {
+    Account account = Iterables.getOnlyElement(indexedModel.getAllAccounts());
+    int totalMatchesToMake = indexedModel.getTransactionCount();
     ImmutableSet.Builder<Account> matchedAccounts = ImmutableSet.<Account>builder().add(account);
-    List<Split> matches = new ArrayList<>(totalMatchesToMake);
-    for (String transactionId : model.transactionsById.keySet()) {
-      if (model.splitsByTransactionId.get(transactionId).size() > 1) {
+    List<Split> allSplits = new ArrayList<>(totalMatchesToMake);
+    for (Transaction transaction : indexedModel.getAllTransactions()) {
+      List<Split> splits = indexedModel.splitsForTransaction(transaction);
+      if (splits.size() > 1) {
         continue;
       }
-      Transaction transaction = model.transactionsById.get(transactionId);
       String transactionDescription = transaction.getDescription();
 
       ImmutableList<Account> options =
@@ -53,9 +52,8 @@ public class SplitMatcherScreen {
       ImmutableMap<String, Account> accountsByName =
           Maps.uniqueIndex(allKnownAccounts, Account::getName);
 
-      Split existingSplit =
-          Iterables.getOnlyElement(model.splitsByTransactionId.get(transactionId));
-      BigDecimal amount = ModelUtil.toBigDecimal(existingSplit);
+      Split existingSplit = Iterables.getOnlyElement(splits);
+      BigDecimal amount = ModelGenerator.bigDecimalForSplit(existingSplit);
       boolean isFlowingOut = amount.compareTo(BigDecimal.ZERO) < 0;
       if (isFlowingOut) {
         amount = amount.negate();
@@ -63,7 +61,7 @@ public class SplitMatcherScreen {
 
       ImmutableList<String> statusMessages =
           ImmutableList.of(
-              (totalMatchesToMake - matches.size()) + " left to match (including this one).");
+              (totalMatchesToMake - allSplits.size()) + " left to match (including this one).");
       ImmutableList<String> prefaces =
           ImmutableList.of(
               "A transaction was made with "
@@ -91,7 +89,7 @@ public class SplitMatcherScreen {
         PromptEvaluator.showAndGetResult(
             TerminalProvider.get(),
             NoticePrompt.withMessages(ImmutableList.of("Aborting split matching.")));
-        return;
+        return ModelGenerator.empty();
       }
 
       Account chosenAccount = UNSELECTED_ACCOUNT;
@@ -112,23 +110,17 @@ public class SplitMatcherScreen {
         splitMatcher.link(chosenAccount, transactionDescription);
       }
       matchedAccounts.add(chosenAccount);
-      matches.add(
+      allSplits.add(existingSplit);
+      allSplits.add(
           Split.newBuilder()
               .setAccountId(chosenAccount.getId())
-              .setTransactionId(transactionId)
+              .setTransactionId(transaction.getId())
               .setValueNumerator(-existingSplit.getValueNumerator())
               .setValueDenominator(existingSplit.getValueDenominator())
               .build());
     }
 
-    ImmutableList<Split> existingSplits = model.splitsByTransactionId.values().asList();
-    ModelManager.addModel(
-        new Model(
-            matchedAccounts.build().asList(),
-            model.transactionsById.values().asList(),
-            ImmutableList.<Split>builderWithExpectedSize(existingSplits.size() + matches.size())
-                .addAll(existingSplits)
-                .addAll(matches)
-                .build()));
+    return ModelGenerator.create(
+        matchedAccounts.build().asList(), indexedModel.getAllTransactions(), allSplits);
   }
 }

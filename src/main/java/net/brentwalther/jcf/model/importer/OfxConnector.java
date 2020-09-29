@@ -16,10 +16,11 @@ import com.webcohesion.ofx4j.io.OFXParseException;
 import com.webcohesion.ofx4j.io.OFXReader;
 import com.webcohesion.ofx4j.io.OFXSyntaxException;
 import com.webcohesion.ofx4j.io.nanoxml.NanoXMLOFXReader;
+import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.Model;
+import net.brentwalther.jcf.model.ModelGenerator;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -28,7 +29,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
-public class OfxConnector {
+public class OfxConnector implements JcfModelImporter {
 
   private final File ofxFile;
 
@@ -36,9 +37,9 @@ public class OfxConnector {
     this.ofxFile = ofxFile;
   }
 
-  public Model extract() {
+  public JcfModel.Model get() {
     if (!this.ofxFile.exists() || !this.ofxFile.isFile()) {
-      return Model.empty();
+      return ModelGenerator.empty();
     }
 
     OFXReader ofxReader = new NanoXMLOFXReader();
@@ -149,13 +150,13 @@ public class OfxConnector {
             break;
         }
       }
-      return new Model(accounts, transactions, splits);
+      return ModelGenerator.create(accounts.values(), transactions.values(), splits.values());
     } catch (IOException e) {
-      return Model.empty();
+      return ModelGenerator.empty();
     } catch (OFXParseException e) {
       e.printStackTrace();
     }
 
-    return Model.empty();
+    return ModelGenerator.empty();
   }
 }
