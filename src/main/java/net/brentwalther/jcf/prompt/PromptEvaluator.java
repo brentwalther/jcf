@@ -13,8 +13,6 @@ import java.util.Optional;
 
 public class PromptEvaluator<T> {
 
-  private static final String HORIZONTAL_LINE = Character.toString((char) 0x2500);
-
   public static <T> T showAndGetResult(Terminal terminal, Prompt<T> prompt) {
     Optional<T> result = Optional.empty();
     do {
@@ -48,13 +46,13 @@ public class PromptEvaluator<T> {
     Size instructionsSize = new Size(size.getColumns(), size.getRows() - statusBars.size() - 5);
     ImmutableList<String> instructions = prompt.getInstructions(instructionsSize);
 
-    writer.print(duplicate(HORIZONTAL_LINE, size.getColumns()));
+    writer.print(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
     if (!statusBars.isEmpty()) {
       statusBars.forEach(writer::println);
-      writer.println(duplicate(HORIZONTAL_LINE, size.getColumns()));
+      writer.println(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
     }
     instructions.forEach(writer::println);
-    writer.println(duplicate(HORIZONTAL_LINE, size.getColumns()));
+    writer.println(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
   }
 
   private static String duplicate(String s, int times) {

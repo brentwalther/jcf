@@ -125,7 +125,6 @@ public class OfxConnector implements JcfModelImporter {
               accounts.put(account.getId(), account);
               for (com.webcohesion.ofx4j.domain.data.common.Transaction transaction :
                   statementTransactions.getMessage().getTransactionList().getTransactions()) {
-                BigDecimal amount = transaction.getBigDecimalAmount();
                 Transaction jfcTransaction =
                     Transaction.newBuilder()
                         .setId(transaction.getId())
@@ -134,11 +133,9 @@ public class OfxConnector implements JcfModelImporter {
                         .setDescription(transaction.getName())
                         .build();
                 Split split =
-                    Split.newBuilder()
+                    ModelGenerator.splitBuilderWithAmount(transaction.getBigDecimalAmount())
                         .setAccountId(account.getId())
                         .setTransactionId(jfcTransaction.getId())
-                        .setValueNumerator(amount.unscaledValue().intValue())
-                        .setValueDenominator((int) Math.pow(10, amount.scale()))
                         .build();
                 transactions.put(jfcTransaction.getId(), jfcTransaction);
                 splits.put(split.getTransactionId(), split);

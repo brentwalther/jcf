@@ -8,7 +8,7 @@ import java.util.stream.Stream;
 public class ModelValidations {
   public static boolean areSplitsBalanced(Stream<Split> splitStream) {
     return splitStream
-            .map(ModelGenerator::bigDecimalForSplit)
+            .map(ModelTransforms::bigDecimalAmountForSplit)
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .compareTo(BigDecimal.ZERO)
         == 0;

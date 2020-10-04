@@ -8,7 +8,7 @@ import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.util.Formatter;
 import org.jline.reader.impl.LineReaderImpl;
 import org.jline.terminal.Terminal;
@@ -69,13 +69,14 @@ public class LedgerExportScreen {
                 + transaction.getDescription());
 
         List<Split> splits = new ArrayList<>(indexedModel.splitsForTransaction(transaction));
-        splits.sort(Ordering.natural().reverse().onResultOf(ModelGenerator::bigDecimalForSplit));
+        splits.sort(
+            Ordering.natural().reverse().onResultOf(ModelTransforms::bigDecimalAmountForSplit));
         for (Split split : splits) {
           writer.println(
               "  "
                   + padString(
                       accountIdToFullString.get(split.getAccountId()), maxAccountNameLength + 2)
-                  + Formatter.ledgerCurrency(ModelGenerator.bigDecimalForSplit(split)));
+                  + Formatter.ledgerCurrency(ModelTransforms.bigDecimalAmountForSplit(split)));
         }
         writer.println();
       }

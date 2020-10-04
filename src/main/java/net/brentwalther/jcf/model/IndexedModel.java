@@ -41,6 +41,10 @@ public class IndexedModel {
     return accountsById.values();
   }
 
+  public ImmutableMap<String, Account> immutableAccountsByIdMap() {
+    return accountsById;
+  }
+
   public int getTransactionCount() {
     return transactionsById.size();
   }

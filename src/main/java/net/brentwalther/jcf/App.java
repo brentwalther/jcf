@@ -13,10 +13,12 @@ public class App {
 
   private static final String HELP_OPTION = "h";
   private static final String GNUCASH_DATABASE_FILE_OPTION = "gnucash-sqlite-db";
+
   @Parameter(
       names = {"--help", "-h"},
       help = true)
   private boolean help;
+
   @Parameter(names = {"--gnucash-sqlite-db"})
   private String sqliteDbFilePath;
 

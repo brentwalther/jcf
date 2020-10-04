@@ -8,7 +8,7 @@ import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.util.Formatter;
@@ -67,7 +67,9 @@ public class CsvExportScreen {
                     Formatter.date(
                         Instant.ofEpochSecond(exportItem.transaction().getPostDateEpochSecond()))),
                 quote(exportItem.account().getName()),
-                quote(Formatter.currency(ModelGenerator.bigDecimalForSplit(exportItem.split())))));
+                quote(
+                    Formatter.currency(
+                        ModelTransforms.bigDecimalAmountForSplit(exportItem.split())))));
       }
       printWriter.flush();
       printWriter.close();

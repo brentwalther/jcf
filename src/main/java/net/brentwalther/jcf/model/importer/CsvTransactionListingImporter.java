@@ -88,6 +88,8 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       String line = scanner.nextLine();
       List<String> pieces = CSV_SPLITTER.splitToList(line);
       if (pieces.size() != numFields) {
+        // TODO: This is buggy because it skips lines that simply had an extra comma in them (lax
+        //   CSV format). We should as least try to parse it and see what happens.
         System.err.println(
             "Line had "
                 + pieces.size()

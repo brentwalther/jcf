@@ -135,7 +135,7 @@ public class CsvMatcher {
       System.err.println(messageOnDeath);
       System.err.println("Exiting.");
       System.exit(1);
-    }
+    
   }
 
   private void run() throws Exception {
@@ -151,14 +151,24 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    File mappingFile = new File(descToAccountTsvFileName);
-    verifyFileExistsOrDie(
-        mappingFile,
-        "The passed in TSV \"Transaction Desc\tAccount Name\\n\" file name \""
-            + descToAccountTsvFileName
-            + "\" does not refer to a file that exists.");
-    JcfModel.Model matchModel =
-        extractModelFrom(mappingFile, FileType.TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING);
+    JcfModel.Model existingModel = ModelGenerator.empty();
+
+    // This is a custom format that I supported instead of just writing a ledger format importer.
+    // Ideally I'd remove it
+    // entirely but since it's already here I'll keep it around.
+    if (!descToAccountTsvFileName.isEmpty()) {
+      File mappingFile = new File(descToAccountTsvFileName);
+      verifyFileExistsOrDie(
+          mappingFile,
+          "The passed in TSV \"Transaction Desc\tAccount Name\\n\" file name \""
+              + descToAccountTsvFileName
+              + "\" does not refer to a file that exists.");
+      existingModel =
+          ModelGenerator.merge(
+              existingModel,
+              extractModelFrom(
+                  mappingFile, FileType.TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING));
+    }
 
     if (!ledgerAccountListingFileName.isEmpty()) {
       File ledgerAccountListingFile = new File(ledgerAccountListingFileName);
@@ -169,9 +179,9 @@ public class CsvMatcher {
               + "\" does not refer to a file that exists.");
       JcfModel.Model allAccounts =
           extractModelFrom(ledgerAccountListingFile, FileType.LEDGER_ACCOUNT_LISTING);
-      matchModel = ModelGenerator.merge(allAccounts, matchModel);
+      existingModel = ModelGenerator.merge(allAccounts, existingModel);
     }
-    SplitMatcher matcher = SplitMatcher.create(matchModel);
+    SplitMatcher matcher = SplitMatcher.create(existingModel);
 
     File csvFile = new File(csvFileName);
     verifyFileExistsOrDie(
@@ -256,7 +266,7 @@ public class CsvMatcher {
             ? PromptEvaluator.showAndGetResult(
                 TerminalProvider.get(),
                 PromptDecorator.decorateWithStatusBars(
-                    AccountPickerPrompt.create(matchModel.getAccountList()),
+                    AccountPickerPrompt.create(existingModel.getAccountList()),
                     ImmutableList.of("Please choose the account this CSV file represents.")))
             : dummyAccount(accountName);
 
@@ -265,12 +275,15 @@ public class CsvMatcher {
       System.exit(1);
     }
 
-    Model model =
+    Model importedModelFromCsv =
         CsvTransactionListingImporter.create(
                 csvFile, csvFieldPositions, dateTimeFormatter, fromAccount)
             .get();
     Model modelToExport =
-        SplitMatcherScreen.start(matcher, IndexedModel.create(model), matchModel.getAccountList());
+        SplitMatcherScreen.start(
+            matcher,
+            /* modelToMatch= */ IndexedModel.create(importedModelFromCsv),
+            /* allKnownAccounts= */ existingModel.getAccountList());
     LedgerExportScreen.start(IndexedModel.create(modelToExport), new FileOutputStream(ledgerFile));
   }
 

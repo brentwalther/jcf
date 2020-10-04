@@ -8,6 +8,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 
+import static com.google.common.base.Strings.repeat;
+
 public class Formatter {
   public static String currency(BigDecimal n) {
     return NumberFormat.getCurrencyInstance().format(n);
@@ -59,5 +61,11 @@ public class Formatter {
     return LocalDate.from(dateTimeFormatter.parse(str))
         .atStartOfDay(ZoneId.systemDefault())
         .toInstant();
+  }
+
+  public static String truncateOrLeftPadTo(int numCharacters, String s) {
+    return s.length() > numCharacters
+        ? s.substring(0, numCharacters)
+        : repeat(" ", numCharacters - s.length()) + s;
   }
 }

@@ -15,7 +15,7 @@ import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -124,7 +124,7 @@ public class ModelGenerator {
       if (!ModelValidations.areSplitsBalanced(allSplitsByTransactionId.get(id).stream())) {
         BigDecimal balance =
             allSplitsByTransactionId.get(id).stream()
-                .map(ModelGenerator::bigDecimalForSplit)
+                .map(ModelTransforms::bigDecimalAmountForSplit)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         logger.atWarning().log(
             "Splits are not balanced for transaction [%s]! Current balance: [%s]",
@@ -135,9 +135,19 @@ public class ModelGenerator {
         allAccountsById.values(), allTransactionsById.values(), allSplitsByTransactionId.values());
   }
 
-  public static BigDecimal bigDecimalForSplit(Split split) {
-    return new BigDecimal(split.getValueNumerator())
-        .setScale(2, RoundingMode.DOWN)
-        .divide(new BigDecimal(split.getValueDenominator()), RoundingMode.UNNECESSARY);
+  public static Split.Builder splitBuilderWithAmount(BigDecimal amount) {
+    int scale = amount.scale();
+    if (scale <= 0) {
+      return Split.newBuilder()
+          .setValueNumerator(amount.toBigInteger().intValueExact())
+          .setValueDenominator(1);
+    } else {
+      BigInteger denominator = BigInteger.TEN.pow(scale);
+      BigInteger numerator = amount.unscaledValue();
+      BigInteger d = numerator.gcd(denominator);
+      return Split.newBuilder()
+          .setValueNumerator(numerator.divide(d).intValueExact())
+          .setValueDenominator(denominator.divide(d).intValueExact());
+    }
   }
 }
