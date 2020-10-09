@@ -135,7 +135,7 @@ public class CsvMatcher {
       System.err.println(messageOnDeath);
       System.err.println("Exiting.");
       System.exit(1);
-    
+    } 
   }
 
   private void run() throws Exception {
@@ -173,9 +173,9 @@ public class CsvMatcher {
     if (!ledgerAccountListingFileName.isEmpty()) {
       File ledgerAccountListingFile = new File(ledgerAccountListingFileName);
       verifyFileExistsOrDie(
-          mappingFile,
+          ledgerAccountListingFile,
           "The passed in ledger-format account listing file name \""
-              + ledgerAccountListingFile
+              + ledgerAccountListingFileName
               + "\" does not refer to a file that exists.");
       JcfModel.Model allAccounts =
           extractModelFrom(ledgerAccountListingFile, FileType.LEDGER_ACCOUNT_LISTING);
