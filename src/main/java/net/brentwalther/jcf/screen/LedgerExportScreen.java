@@ -63,6 +63,10 @@ public class LedgerExportScreen {
       List<Transaction> transactions = new ArrayList<>(indexedModel.getAllTransactions());
       transactions.sort(Comparator.comparingLong(Transaction::getPostDateEpochSecond));
       for (Transaction transaction : transactions) {
+        // TODO: We assume here that all transactions are in a 'cleared' state and denote that
+        //   with an asterisk. If we add transaction clear status, this could also be an
+        //   exclamation point. See:
+        //   https://www.ledger-cli.org/3.0/doc/ledger3.html#index-transaction_002c-automated
         writer.println(
             Formatter.ledgerDate(Instant.ofEpochSecond(transaction.getPostDateEpochSecond()))
                 + " * "

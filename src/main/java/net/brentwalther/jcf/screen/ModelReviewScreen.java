@@ -134,8 +134,7 @@ class ModelReviewScreen {
       Multimap<String, Split> splitsByTransactionId) {
     ImmutableSet.Builder<String> imbalancedTransactionIds = ImmutableSet.builder();
     for (String id : splitsByTransactionId.keySet()) {
-      boolean isBalanced =
-          ModelValidations.areSplitsBalanced(splitsByTransactionId.get(id).stream());
+      boolean isBalanced = ModelValidations.areSplitsBalanced(splitsByTransactionId.get(id));
       if (!isBalanced) {
         imbalancedTransactionIds.add(id);
       }

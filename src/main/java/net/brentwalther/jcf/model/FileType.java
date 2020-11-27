@@ -13,4 +13,5 @@ public enum FileType {
    * <p>"account [account_name]\n"
    */
   LEDGER_ACCOUNT_LISTING,
+  LEDGER_CLI,
 }

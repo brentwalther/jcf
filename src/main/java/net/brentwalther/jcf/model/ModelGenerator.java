@@ -121,7 +121,7 @@ public class ModelGenerator {
       allSplitsByTransactionId.put(split.getTransactionId(), split);
     }
     for (String id : allSplitsByTransactionId.keySet()) {
-      if (!ModelValidations.areSplitsBalanced(allSplitsByTransactionId.get(id).stream())) {
+      if (!ModelValidations.areSplitsBalanced(allSplitsByTransactionId.get(id))) {
         BigDecimal balance =
             allSplitsByTransactionId.get(id).stream()
                 .map(ModelTransforms::bigDecimalAmountForSplit)

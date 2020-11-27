@@ -38,11 +38,12 @@ maven_install(
         "com.google.flogger:flogger-system-backend:0.5.1",
         "com.google.guava:guava:28.2-jre",
         "com.google.protobuf:protobuf-java:3.0.0",
+        "com.google.re2j:re2j:1.5",
+        "com.google.truth:truth:1.1",
         "com.webcohesion.ofx4j:ofx4j:1.7",
         "org.jline:jline:3.1.3",
         "org.xerial:sqlite-jdbc:3.7.2",
-
-        # "junit:junit:4.12",
+        "junit:junit:4.12",
         # "org.hamcrest:hamcrest-library:1.3",
     ],
     repositories = [

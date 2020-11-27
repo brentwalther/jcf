@@ -19,7 +19,7 @@ import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
-import net.brentwalther.jcf.model.importer.LedgerAccountListingImporter;
+import net.brentwalther.jcf.model.importer.LedgerFileImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.PromptDecorator;
@@ -61,6 +61,9 @@ public class CsvMatcher {
 
   @Parameter(names = {"--ledger_account_listing"})
   private String ledgerAccountListingFileName = UNSET;
+
+  @Parameter(names = {"--master_ledger"})
+  private String masterLedgerFileName = UNSET;
 
   @Parameter(
       names = {"--transaction_csv"},
@@ -121,7 +124,8 @@ public class CsvMatcher {
       case TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING:
         return TsvTransactionDescAccountMappingImporter.create(loadAllLines(file)).get();
       case LEDGER_ACCOUNT_LISTING:
-        return LedgerAccountListingImporter.create(loadAllLines(file)).get();
+      case LEDGER_CLI:
+        return LedgerFileImporter.create(loadAllLines(file)).get();
     }
     // If we don't have an importer for this file type, that's really not good. Just exit
     // immediately.
@@ -135,7 +139,7 @@ public class CsvMatcher {
       System.err.println(messageOnDeath);
       System.err.println("Exiting.");
       System.exit(1);
-    } 
+    }
   }
 
   private void run() throws Exception {
@@ -154,8 +158,7 @@ public class CsvMatcher {
     JcfModel.Model existingModel = ModelGenerator.empty();
 
     // This is a custom format that I supported instead of just writing a ledger format importer.
-    // Ideally I'd remove it
-    // entirely but since it's already here I'll keep it around.
+    // Ideally I'd remove it entirely but since it's already here I'll keep it around.
     if (!descToAccountTsvFileName.isEmpty()) {
       File mappingFile = new File(descToAccountTsvFileName);
       verifyFileExistsOrDie(
@@ -180,6 +183,15 @@ public class CsvMatcher {
       JcfModel.Model allAccounts =
           extractModelFrom(ledgerAccountListingFile, FileType.LEDGER_ACCOUNT_LISTING);
       existingModel = ModelGenerator.merge(allAccounts, existingModel);
+    }
+
+    if (!masterLedgerFileName.isEmpty()) {
+      File masterLedgerFile = new File(masterLedgerFileName);
+      verifyFileExistsOrDie(
+          masterLedgerFile, "Specified master ledger file does not exist: " + masterLedgerFileName);
+      existingModel =
+          ModelGenerator.merge(
+              existingModel, extractModelFrom(masterLedgerFile, FileType.LEDGER_CLI));
     }
     SplitMatcher matcher = SplitMatcher.create(existingModel);
 
