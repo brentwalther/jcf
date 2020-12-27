@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+package net.brentwalther.jcf;
+
+option java_package = "net.brentwalther.jcf";
+option java_outer_classname = "SettingsProto";
+
+// A list of settings profiles.
+message SettingsProfiles {
+  repeated SettingsProfile settings_profile = 1;
+}
+
+// A text-proto specifiable way to keep setting profiles.
+message SettingsProfile {
+  enum DataField {
+    UNKNOWN_FIELD = 0;
+    // The date on which a transaction occurred.
+    DATE = 1;
+    // The description of the transaction in question.
+    DESCRIPTION = 2;
+    // The debit amount of the transaction if credit/debit amounts
+    // are separate.
+    DEBIT = 3;
+    // The credit amount of the transaction, if credit/debit
+    // amounts are separate.
+    CREDIT = 4;
+    // The amount of the transaction interpreted literally.
+    AMOUNT = 5;
+  }
+  message CsvFieldPositions {
+    // The position of a field specified as the 0-based column index
+    // within a split CSV string.
+    message FieldPosition {
+      // The field this column maps to.
+      optional DataField field = 1;
+
+      // The column mapping in split CSV string this field is found.
+      optional int32 column_index = 2;
+    }
+
+    // The positions of data within a CSV string.
+    repeated FieldPosition position = 1;
+  }
+
+  // Optional name for this SettingsProfile. If unspecified, JCF will attempt to
+  // apply the settings globally. If named, the settings will be applied if the
+  // user also specifies the name.
+  optional string name = 1;
+
+  // The expected positions of csv field data.
+  optional CsvFieldPositions csv_field_positions = 2;
+
+  // The CSV date format pattern that should be used for CSV import. It should
+  // be specified in java.time.format.DateTimeFormatter pattern format.
+  optional string csv_date_format_java = 3;
+
+  // The name of the account that the transactions in the CSV input file are
+  // associated with. This account need not exist beforehand.c
+  optional string csv_account_name = 4;
+}

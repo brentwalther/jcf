@@ -1,0 +1,25 @@
+# proto-file: src/main/proto/settings_profile.proto
+# proto-message: SettingsProfiles
+settings_profile: {
+  name: 'ally'
+  csv_date_format_java: 'yyyy-MM-dd'
+  csv_field_positions: {
+    position: {
+      field: DATE
+      column_index: 0
+    }
+    position: {
+      field: AMOUNT
+      column_index: 2
+    }
+    position: {
+      field: DESCRIPTION
+      column_index: 4
+    }
+  }
+}
+settings_profile: {
+  name: '1234'
+  csv_account_name: 'Assets:Current Assets:Checking 1234'
+}
+

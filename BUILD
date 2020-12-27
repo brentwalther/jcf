@@ -9,6 +9,7 @@ java_library(
     ]),
     deps = [
         ":jcf_model_java_proto",
+        ":jcf_settings_profile_java_proto",
         "@maven//:com_beust_jcommander",
         "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_flogger_flogger",
@@ -46,9 +47,10 @@ java_binary(
     deps = [
         ":jcf_main_lib",
         ":jcf_model_java_proto",
+        ":jcf_settings_profile_java_proto",
         "@maven//:com_beust_jcommander",
+        "@maven//:com_google_flogger_flogger",
         "@maven//:com_google_guava_guava",
-        # "@maven//:org_hamcrest_hamcrest_library",
     ],
 )
 
@@ -76,5 +78,17 @@ proto_library(
     name = "jcf_model_proto",
     srcs = [
         "src/main/proto/model.proto",
+    ],
+)
+
+java_proto_library(
+    name = "jcf_settings_profile_java_proto",
+    deps = [":jcf_settings_profile_proto"],
+)
+
+proto_library(
+    name = "jcf_settings_profile_proto",
+    srcs = [
+        "src/main/proto/settings_profile.proto",
     ],
 )

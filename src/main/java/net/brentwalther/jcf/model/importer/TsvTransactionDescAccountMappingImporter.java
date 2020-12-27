@@ -20,11 +20,11 @@ public class TsvTransactionDescAccountMappingImporter implements JcfModelImporte
 
   private final ImmutableList<String> tsvLines;
 
-  private TsvTransactionDescAccountMappingImporter(ImmutableList<String> tsvLines) {
-    this.tsvLines = tsvLines;
+  private TsvTransactionDescAccountMappingImporter(List<String> tsvLines) {
+    this.tsvLines = ImmutableList.copyOf(tsvLines);
   }
 
-  public static TsvTransactionDescAccountMappingImporter create(ImmutableList<String> tsvLines) {
+  public static TsvTransactionDescAccountMappingImporter create(List<String> tsvLines) {
     return new TsvTransactionDescAccountMappingImporter(tsvLines);
   }
 

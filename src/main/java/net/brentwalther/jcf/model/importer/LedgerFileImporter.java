@@ -39,18 +39,23 @@ public class LedgerFileImporter implements JcfModelImporter {
   private static final Pattern USD_CURRENCY_PATTERN = Pattern.compile("[$]-?[0-9,]+([.]\\d+)?");
   private static final ImmutableMap<Pattern, DateTimeFormatter> DATE_TIME_PATTERNS_TO_FORMATTERS =
       ImmutableMap.<Pattern, DateTimeFormatter>builder()
-          .put(Pattern.compile("[12]\\d{3}-\\d{2}-\\d{2}"), DateTimeFormatter.ofPattern("y-M-d"))
+          .put(
+              Pattern.compile("[12]\\d{3}-\\d{2}-\\d{2}"),
+              DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+          .put(
+              Pattern.compile("[12]\\d{3}/\\d{2}/\\d{2}"),
+              DateTimeFormatter.ofPattern("yyyy/MM/dd"))
           .build();
   private static final Function<String, Account> ACCOUNT_GENERATOR =
       (name) -> Account.newBuilder().setId(name).setName(name).build();
 
   private final ImmutableList<String> ledgerFileLines;
 
-  private LedgerFileImporter(ImmutableList<String> ledgerFileLines) {
-    this.ledgerFileLines = ledgerFileLines;
+  private LedgerFileImporter(List<String> ledgerFileLines) {
+    this.ledgerFileLines = ImmutableList.copyOf(ledgerFileLines);
   }
 
-  public static LedgerFileImporter create(ImmutableList<String> ledgerFileLines) {
+  public static LedgerFileImporter create(List<String> ledgerFileLines) {
     return new LedgerFileImporter(ledgerFileLines);
   }
 
@@ -159,7 +164,7 @@ public class LedgerFileImporter implements JcfModelImporter {
         String transactionDescription = spaceJoiner.join(restOfTokens);
         if (transactionDescription.isEmpty()) {
           LOGGER.atWarning().log(
-              "Transaction occuring on date %s had no description!", tokens.get(0));
+              "Transaction occurring on date %s had no description!", tokens.get(0));
         }
         currentTransaction =
             Transaction.newBuilder()
@@ -173,8 +178,13 @@ public class LedgerFileImporter implements JcfModelImporter {
                 .setDescription(transactionDescription)
                 .setPostDateEpochSecond(transactionInstant.getEpochSecond())
                 .build();
+      } else {
+        LOGGER.atWarning().log("Ignoring line from ledger file: '%s'", line);
       }
     }
+    LOGGER.atInfo().log(
+        "Imported %s accounts, %s transactions, and %s splits from ledger file.",
+        accountsById.size(), transactionsById.size(), splitsByTranscationId.size());
     return ModelGenerator.create(
         accountsById.values(), transactionsById.values(), splitsByTranscationId.values());
   }

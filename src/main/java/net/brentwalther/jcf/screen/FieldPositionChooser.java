@@ -10,7 +10,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import net.brentwalther.jcf.CsvMatcher;
+import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
@@ -22,12 +22,12 @@ import java.util.Objects;
 import java.util.Set;
 
 public class FieldPositionChooser {
-  public static ImmutableMap<CsvMatcher.CsvField, Integer> getPositionsFor(String line) {
+  public static ImmutableMap<DataField, Integer> getPositionsFor(String line) {
 
-    BiMap<CsvMatcher.CsvField, Integer> mappings = EnumHashBiMap.create(CsvMatcher.CsvField.class);
+    BiMap<DataField, Integer> mappings = EnumHashBiMap.create(DataField.class);
     List<String> fields = Splitter.on(',').trimResults().splitToList(line);
 
-    Set<CsvMatcher.CsvField> unsetFields = Sets.newHashSet(CsvMatcher.CsvField.values());
+    Set<DataField> unsetFields = Sets.newHashSet(DataField.values());
     while (!hasNecessaryFieldsSet(mappings)) {
 
       List<String> fieldOptionStrings = new ArrayList<>();
@@ -72,7 +72,7 @@ public class FieldPositionChooser {
         continue;
       }
 
-      List<CsvMatcher.CsvField> assignmentOptions = ImmutableList.copyOf(unsetFields);
+      List<DataField> assignmentOptions = ImmutableList.copyOf(unsetFields);
       OptionsPrompt.Choice assignment =
           PromptEvaluator.showAndGetResult(
               TerminalProvider.get(),
@@ -90,7 +90,7 @@ public class FieldPositionChooser {
         continue;
       }
 
-      CsvMatcher.CsvField assignedField = null;
+      DataField assignedField = null;
       switch (assignment.type) {
         case NUMBERED_OPTION:
           assignedField = assignmentOptions.get(assignment.numberChoice);
@@ -107,17 +107,17 @@ public class FieldPositionChooser {
         unsetFields.remove(assignedField);
       }
     }
-    return ImmutableMap.<CsvMatcher.CsvField, Integer>builder()
+    return ImmutableMap.<DataField, Integer>builder()
         .putAll(mappings)
         .putAll(Iterables.transform(unsetFields, field -> Maps.immutableEntry(field, -1)))
         .build();
   }
 
-  private static boolean hasNecessaryFieldsSet(Map<CsvMatcher.CsvField, Integer> positions) {
-    return positions.containsKey(CsvMatcher.CsvField.DESCRIPTION)
-        && positions.containsKey(CsvMatcher.CsvField.DATE)
-        && (positions.containsKey(CsvMatcher.CsvField.AMOUNT)
-            || (positions.containsKey(CsvMatcher.CsvField.CREDIT)
-                && positions.containsKey(CsvMatcher.CsvField.DEBIT)));
+  private static boolean hasNecessaryFieldsSet(Map<DataField, Integer> positions) {
+    return positions.containsKey(DataField.DESCRIPTION)
+        && positions.containsKey(DataField.DATE)
+        && (positions.containsKey(DataField.AMOUNT)
+            || (positions.containsKey(DataField.CREDIT)
+                && positions.containsKey(DataField.DEBIT)));
   }
 }

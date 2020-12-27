@@ -35,7 +35,7 @@ import static com.google.common.base.Strings.repeat;
 public class SplitMatcherScreen {
 
   private static final Account UNMATCHED_PHANTOM_ACCOUNT =
-      Account.newBuilder().setId("UNMATCHED").setName("IMBALANCE").build();
+      Account.newBuilder().setId("Imbalance").setName("Imbalance").build();
 
   private static final Account MULTISPLIT_SYNTHESIZED_ACCOUNT_OPTION =
       Account.newBuilder().setId("MULTISPLIT").setName("Split multiple ways...").build();

@@ -1,12 +1,15 @@
 package net.brentwalther.jcf.model.importer;
 
-import com.google.common.base.Splitter;
+import com.google.common.base.Joiner;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.CsvMatcher;
-import net.brentwalther.jcf.CsvMatcher.CsvField;
-import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.JcfEnvironment;
+import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
@@ -14,106 +17,151 @@ import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.util.Formatter;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
+import java.util.Optional;
+
+import static com.google.common.base.Preconditions.checkState;
 
 public class CsvTransactionListingImporter implements JcfModelImporter {
 
-  private static final Splitter CSV_SPLITTER = Splitter.on(',');
+  private static final JcfModelImporter NO_OP_IMPORTER = () -> Model.getDefaultInstance();
+
+  private static final ImmutableSet<ImmutableSet<DataField>> ACCEPTABLE_DATA_FIELD_COMBINATIONS =
+      ImmutableSet.of(
+          Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.AMOUNT),
+          Sets.immutableEnumSet(
+              DataField.DATE, DataField.DESCRIPTION, DataField.CREDIT, DataField.DEBIT));
+
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
-  private final File csvFile;
-  private final Map<CsvMatcher.CsvField, Integer> csvFieldPositions;
+
+  private final ImmutableList<String> csvLines;
+  private final Map<DataField, Integer> csvFieldPositions;
   private final DateTimeFormatter dateTimeFormatter;
   private final Account fromAccount;
 
   private CsvTransactionListingImporter(
-      File csvFile,
-      Map<CsvField, Integer> csvFieldPositions,
+      ImmutableList<String> csvLines,
+      Map<DataField, Integer> csvFieldPositions,
       DateTimeFormatter dateTimeFormatter,
       Account fromAccount) {
-    this.csvFile = csvFile;
+    this.csvLines = csvLines;
     this.csvFieldPositions = csvFieldPositions;
     this.dateTimeFormatter = dateTimeFormatter;
     this.fromAccount = fromAccount;
-  }
-
-  public static CsvTransactionListingImporter create(
-      File csvFile,
-      Map<CsvMatcher.CsvField, Integer> csvFieldPositions,
-      DateTimeFormatter dateTimeFormatter,
-      Account fromAccount) {
-    return new CsvTransactionListingImporter(
-        csvFile, csvFieldPositions, dateTimeFormatter, fromAccount);
   }
 
   private static int parseDollarValueAsCents(String dollarValueString) {
     return Integer.parseInt(dollarValueString.replace(".", ""));
   }
 
+  public static JcfModelImporter create(JcfEnvironment jcfEnvironment) {
+    ImmutableList<String> inputCsvLines = jcfEnvironment.getInputCsvLines();
+    ImmutableMap<DataField, Integer> csvFieldMappings = jcfEnvironment.getCsvFieldMappings();
+    if (inputCsvLines.isEmpty()) {
+      LOGGER.atSevere().log("CSV input lines are unexpectedly empty. Returning a no-op importer.");
+      return NO_OP_IMPORTER;
+    }
+    if (Sets.filter(
+            ACCEPTABLE_DATA_FIELD_COMBINATIONS,
+            (combination) -> Sets.difference(combination, csvFieldMappings.keySet()).isEmpty())
+        .isEmpty()) {
+      LOGGER.atSevere().log(
+          "The input CSV field mappings are not sufficient. Returning a no-op importer. Found: [%s]. Wanted: [%s].",
+          Joiner.on(", ").join(csvFieldMappings.keySet()),
+          Joiner.on(", ").join(ACCEPTABLE_DATA_FIELD_COMBINATIONS));
+      return NO_OP_IMPORTER;
+    }
+
+    Optional<DateTimeFormatter> csvDateTimeFormatter = jcfEnvironment.getCsvDateFormat();
+    if (!csvDateTimeFormatter.isPresent()) {
+      LOGGER.atSevere().log("No declared CSV date format. Returning a no-op importer.");
+      return NO_OP_IMPORTER;
+    }
+
+    Optional<Account> csvAccount = jcfEnvironment.getCsvAccount();
+    if (!csvAccount.isPresent()) {
+      LOGGER.atSevere().log("No declared CSV account. Returning a no-op importer.");
+      return NO_OP_IMPORTER;
+    }
+
+    return new CsvTransactionListingImporter(
+        inputCsvLines, csvFieldMappings, csvDateTimeFormatter.get(), csvAccount.get());
+  }
+
+  private static ImmutableList<String> splitCsv(String csvString) {
+    return ImmutableList.copyOf(
+        new AbstractIterator<String>() {
+
+          private int lastTokenEnd = -1;
+
+          @Override
+          protected String computeNext() {
+            String nextToken = "";
+            while (nextToken.isEmpty()) {
+              if (lastTokenEnd == csvString.length()) {
+                return endOfData();
+              }
+              int tokenStart = lastTokenEnd + 1;
+              int nextTokenEnd = csvString.indexOf(",", tokenStart);
+              if (nextTokenEnd == -1) {
+                nextTokenEnd = csvString.length();
+              }
+              // If the start of this token is a quote, disregard any comments if we're able to find
+              // matching close quotations.
+              if (tokenStart < csvString.length() && csvString.charAt(tokenStart) == '"') {
+                // Add one to tokenStart to shave off the initial quote.
+                int quoteStart = tokenStart + 1;
+                int quoteEnd = csvString.indexOf("\"", quoteStart);
+                if (quoteEnd > quoteStart) {
+                  tokenStart = quoteStart;
+                  nextTokenEnd = quoteEnd;
+                }
+              }
+              nextToken = csvString.substring(tokenStart, nextTokenEnd);
+              lastTokenEnd = nextTokenEnd;
+            }
+            return nextToken;
+          }
+        });
+  }
+
   @Override
   public Model get() {
-    int maxFieldPosition = csvFieldPositions.values().stream().max(Integer::compareTo).get();
-    Scanner scanner = null;
-    try {
-      scanner = new Scanner(csvFile);
-    } catch (FileNotFoundException e) {
-      LOGGER.atSevere().withCause(e).log("Failed to open CSV file: %s", csvFile);
-      return JcfModel.Model.getDefaultInstance();
-    }
-    int numFields = 0;
-    if (!scanner.hasNextLine()) {
-      System.err.println("The CSV file had no lines... Exiting.");
-      System.exit(1);
-    }
-    numFields = Iterables.size(CSV_SPLITTER.split(scanner.nextLine()));
-    if (numFields <= maxFieldPosition) {
-      System.err.println(
-          "The specified field positions ("
-              + csvFieldPositions
-              + " did not match the CSV format which had "
-              + numFields
-              + " fields. Exiting,");
-      System.exit(1);
-    }
+    checkState(!csvLines.isEmpty());
+    List<String> columnHeaderNames = splitCsv(csvLines.get(0));
+    Iterable<String> rest = Iterables.skip(csvLines, 1);
     List<Transaction> transactions = new ArrayList<>();
     List<Split> splits = new ArrayList<>();
     int id = 0;
-    while (scanner.hasNextLine()) {
-      String line = scanner.nextLine();
-      List<String> pieces = CSV_SPLITTER.splitToList(line);
-      if (pieces.size() != numFields) {
+    for (String line : rest) {
+      List<String> pieces = splitCsv(line);
+      if (pieces.size() != columnHeaderNames.size()) {
         // TODO: This is buggy because it skips lines that simply had an extra comma in them (lax
         //   CSV format). We should as least try to parse it and see what happens.
-        System.err.println(
-            "Line had "
-                + pieces.size()
-                + " fields but expected "
-                + numFields
-                + ". Skipping it: "
-                + line);
+        LOGGER.atWarning().log(
+            "Line had %s comma-delimited fields but expected %s. Skipping it: '%s'",
+            pieces.size(), columnHeaderNames.size(), line);
         continue;
       }
       Instant date =
           Formatter.parseDateFrom(
-              pieces.get(csvFieldPositions.get(CsvField.DATE)), dateTimeFormatter);
-      String desc = pieces.get(csvFieldPositions.get(CsvField.DESCRIPTION));
+              pieces.get(csvFieldPositions.get(DataField.DATE)), dateTimeFormatter);
+      String desc = pieces.get(csvFieldPositions.get(DataField.DESCRIPTION));
       int valueNumerator = 0;
       int valueDenominator = 100;
-      if (csvFieldPositions.get(CsvField.AMOUNT) != -1) {
+      if (csvFieldPositions.get(DataField.AMOUNT) != -1) {
         valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.AMOUNT)));
-      } else if (pieces.get(csvFieldPositions.get(CsvField.DEBIT)).isEmpty()) {
+            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.AMOUNT)));
+      } else if (pieces.get(csvFieldPositions.get(DataField.DEBIT)).isEmpty()) {
         valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.CREDIT)));
+            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.CREDIT)));
       } else {
         valueNumerator =
-            -1 * parseDollarValueAsCents(pieces.get(csvFieldPositions.get(CsvField.DEBIT)));
+            -1 * parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.DEBIT)));
       }
       Transaction transaction =
           Transaction.newBuilder()
