@@ -6,3 +6,7 @@ bazel-*
 /.clwb/
 /.idea/
 *.iml
+/.gradle/
+/gradle/
+gradlew
+gradlew.bat
