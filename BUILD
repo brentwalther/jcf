@@ -8,6 +8,7 @@ java_library(
         "src/main/java/net/brentwalther/jcf/**/*.java",
     ]),
     deps = [
+        ":autovalue",
         ":jcf_model_java_proto",
         ":jcf_settings_profile_java_proto",
         "@maven//:com_beust_jcommander",
@@ -90,5 +91,24 @@ proto_library(
     name = "jcf_settings_profile_proto",
     srcs = [
         "src/main/proto/settings_profile.proto",
+    ],
+)
+
+java_plugin(
+    name = "autovalue_plugin",
+    processor_class = "com.google.auto.value.processor.AutoValueProcessor",
+    deps = [
+        "@maven//:com_google_auto_value_auto_value",
+    ],
+)
+
+java_library(
+    name = "autovalue",
+    exported_plugins = [
+        ":autovalue_plugin",
+    ],
+    neverlink = 1,
+    exports = [
+        "@maven//:com_google_auto_value_auto_value",
     ],
 )

@@ -85,7 +85,7 @@ class ModelReviewScreen {
       case MATCH_SPLITS:
         return IndexedModel.create(
             SplitMatcherScreen.start(
-                SplitMatcher.create(indexedModel), indexedModel, indexedModel.getAllAccounts()));
+                SplitMatcher.create(indexedModel), indexedModel, indexedModel.immutableAccountsByIdMap()));
       case EXPORT_MODEL:
         File modelFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
         if (modelFile != null && modelFile.exists()) {

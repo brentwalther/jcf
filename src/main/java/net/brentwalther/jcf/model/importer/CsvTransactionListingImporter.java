@@ -72,7 +72,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       LOGGER.atSevere().log(
           "The input CSV field mappings are not sufficient. Returning a no-op importer. Found: [%s]. Wanted: [%s].",
           Joiner.on(", ").join(csvFieldMappings.keySet()),
-          Joiner.on(", ").join(ACCEPTABLE_DATA_FIELD_COMBINATIONS));
+          Joiner.on(" or ").join(ACCEPTABLE_DATA_FIELD_COMBINATIONS));
       return NO_OP_IMPORTER;
     }
 

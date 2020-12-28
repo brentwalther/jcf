@@ -50,15 +50,8 @@ public class ModelGenerator {
         .build();
   }
 
-  /** A callable interface representing a pending merge into a supplied base model. */
-  public interface PendingMerge {
-    Model into(Model mergeBase);
-  }
-
   public static PendingMerge merge(Model modelToMerge) {
-    LOGGER.atInfo().log("Creating a pending merge for model %s.", modelToMerge);
     return (base) -> {
-      LOGGER.atInfo().log("Applying merge on to base model %s", base);
       Map<String, Account> allAccountsById =
           Maps.newHashMapWithExpectedSize(base.getAccountCount() + modelToMerge.getAccountCount());
       Iterable<Account> unmergedAccounts =
@@ -68,14 +61,12 @@ public class ModelGenerator {
         if (accountId.isEmpty()) {
           accountId = Hashing.goodFastHash(128).hashBytes(account.toByteArray()).toString();
           account = account.toBuilder().setId(accountId).build();
-          LOGGER.atInfo().log("Generated ID %s for account [%s]", accountId, account.getName());
+          LOGGER.atInfo().log("Generated ID %s for account [%s]", accountId, account);
         }
         if (allAccountsById.containsKey(accountId)
             && !allAccountsById.get(accountId).equals(account)) {
-          LOGGER.atWarning().log("During merge, account with id %s was overwritten.", accountId);
           LOGGER.atInfo().log(
-              "Overwriting account %s with %s.",
-              allAccountsById.get(accountId).getName(), account.getName());
+              "Overwriting account %s with %s.", allAccountsById.get(accountId), account);
         }
         allAccountsById.put(accountId, account);
       }
@@ -89,16 +80,12 @@ public class ModelGenerator {
         if (transactionId.isEmpty()) {
           transactionId = Hashing.goodFastHash(128).hashBytes(transaction.toByteArray()).toString();
           transaction = transaction.toBuilder().setId(transactionId).build();
-          LOGGER.atInfo().log(
-              "Generated ID %s for transaction [%s]", transactionId, transaction.getDescription());
+          LOGGER.atInfo().log("Generated ID %s for transaction [%s]", transactionId, transaction);
         }
         if (allTransactionsById.containsKey(transactionId)
             && !allTransactionsById.get(transactionId).equals(transaction)) {
-          LOGGER.atWarning().log(
-              "During merge, transaction with id %s was overwritten.", transactionId);
           LOGGER.atInfo().log(
-              "Overwriting %s with %s.",
-              allAccountsById.get(transactionId).getName(), transaction.getDescription());
+              "Overwriting %s with %s.", allTransactionsById.get(transactionId), transaction);
         }
         allTransactionsById.put(transactionId, transaction);
       }
@@ -124,15 +111,15 @@ public class ModelGenerator {
         }
         allSplitsByTransactionId.put(split.getTransactionId(), split);
       }
-      for (String id : allSplitsByTransactionId.keySet()) {
-        if (!ModelValidations.areSplitsBalanced(allSplitsByTransactionId.get(id))) {
+      for (String transactionId : allSplitsByTransactionId.keySet()) {
+        if (!ModelValidations.areSplitsBalanced(allSplitsByTransactionId.get(transactionId))) {
           BigDecimal balance =
-              allSplitsByTransactionId.get(id).stream()
+              allSplitsByTransactionId.get(transactionId).stream()
                   .map(ModelTransforms::bigDecimalAmountForSplit)
                   .reduce(BigDecimal.ZERO, BigDecimal::add);
           LOGGER.atWarning().log(
               "Splits are not balanced for transaction [%s]! Current balance: [%s]",
-              id, Formatter.ledgerCurrency(balance));
+              allTransactionsById.get(transactionId), Formatter.ledgerCurrency(balance));
         }
       }
       return create(
@@ -156,5 +143,10 @@ public class ModelGenerator {
           .setValueNumerator(numerator.divide(d).intValueExact())
           .setValueDenominator(denominator.divide(d).intValueExact());
     }
+  }
+
+  /** A callable interface representing a pending merge into a supplied base model. */
+  public interface PendingMerge {
+    Model into(Model mergeBase);
   }
 }

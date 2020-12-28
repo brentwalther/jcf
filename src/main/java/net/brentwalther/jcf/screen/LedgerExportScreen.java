@@ -1,19 +1,18 @@
 package net.brentwalther.jcf.screen;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
-import net.brentwalther.jcf.TerminalProvider;
+import com.google.common.flogger.FluentLogger;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.util.Formatter;
-import org.jline.reader.impl.LineReaderImpl;
-import org.jline.terminal.Terminal;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.time.Instant;
@@ -22,47 +21,52 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class LedgerExportScreen {
 
-  private static final String ACCOUNT_DELIMITER = ":";
+  private static final String COLON_ACCOUNT_DELIMITER_CHAR = ":";
+  private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
+  private static final String IMBALANCE_ACCOUNT_NAME = "Imbalance";
 
-  public static void start(IndexedModel indexedModel, OutputStream outputStream) {
+  /** Writes the model as a ledger CLI format file to outputStream. Returns true if successful. */
+  public static boolean start(IndexedModel indexedModel, OutputStream outputStream) {
+    if (indexedModel.getAllTransactions().isEmpty()
+        && indexedModel.getAllAccounts().isEmpty()
+        && indexedModel.getAllSplits().isEmpty()) {
+      LOGGER.atWarning().log("Model to export is empty. Not writing to file.");
+      return false;
+    }
     // First produce a map of accounts to names like Assets:Investments:VTSAX
     Map<String, String> accountIdToFullString = new HashMap<>();
+    ImmutableMap<String, Account> accountsById = indexedModel.immutableAccountsByIdMap();
     for (Account account : indexedModel.getAllAccounts()) {
-      if (accountIdToFullString.containsKey(account.getParentId())) {
-        accountIdToFullString.put(
-            account.getId(),
-            accountIdToFullString.get(account.getParentId())
-                + ACCOUNT_DELIMITER
-                + account.getName());
-      } else {
-        // We haven't produced the name for this account or any parent yet. Just produce the whole
-        // thing.
-        String originalId = account.getId();
-        List<String> names = new ArrayList<>(4);
-        names.add(account.getName());
-        while (!account.getParentId().isEmpty()) {
-          account = indexedModel.getAccountById(account.getParentId());
-          if (account.getName().isEmpty()) {
-            break;
-          }
-          names.add(account.getName());
+      String originalId = account.getId();
+      List<String> names = new ArrayList<>(4);
+      names.add(account.getName());
+      while (!account.getParentId().isEmpty() && accountsById.containsKey(account.getParentId())) {
+        account = accountsById.get(account.getParentId());
+        if (account.getName().isEmpty()) {
+          break;
         }
-        accountIdToFullString.put(
-            originalId, Joiner.on(ACCOUNT_DELIMITER).join(Lists.reverse(names)));
+        names.add(account.getName());
       }
+      accountIdToFullString.put(
+          originalId, Joiner.on(COLON_ACCOUNT_DELIMITER_CHAR).join(Lists.reverse(names)));
     }
 
     int maxAccountNameLength =
-        accountIdToFullString.values().stream().mapToInt(String::length).max().orElse(0);
+        Math.max(
+            accountIdToFullString.values().stream()
+                .mapToInt(String::length)
+                .max()
+                .orElse(IMBALANCE_ACCOUNT_NAME.length()),
+            IMBALANCE_ACCOUNT_NAME.length());
 
-    Terminal terminal = TerminalProvider.get();
     try (PrintWriter writer = new PrintWriter(outputStream)) {
-      List<Transaction> transactions = new ArrayList<>(indexedModel.getAllTransactions());
-      transactions.sort(Comparator.comparingLong(Transaction::getPostDateEpochSecond));
-      for (Transaction transaction : transactions) {
+      for (Transaction transaction :
+          Ordering.from(Comparator.comparingLong(Transaction::getPostDateEpochSecond))
+              .immutableSortedCopy(indexedModel.getAllTransactions())) {
         // TODO: We assume here that all transactions are in a 'cleared' state and denote that
         //   with an asterisk. If we add transaction clear status, this could also be an
         //   exclamation point. See:
@@ -72,24 +76,24 @@ public class LedgerExportScreen {
                 + " * "
                 + transaction.getDescription());
 
-        List<Split> splits = new ArrayList<>(indexedModel.splitsForTransaction(transaction));
-        splits.sort(
-            Ordering.natural().reverse().onResultOf(ModelTransforms::bigDecimalAmountForSplit));
-        for (Split split : splits) {
+        for (Split split :
+            FluentIterable.from(indexedModel.splitsForTransaction(transaction))
+                .toSortedList(
+                    Ordering.natural()
+                        .reverse()
+                        .onResultOf(ModelTransforms::bigDecimalAmountForSplit))) {
           writer.println(
               "  "
                   + padString(
-                      accountIdToFullString.get(split.getAccountId()), maxAccountNameLength + 2)
+                      Optional.ofNullable(accountIdToFullString.get(split.getAccountId()))
+                          .orElse(IMBALANCE_ACCOUNT_NAME),
+                      maxAccountNameLength + 2)
                   + Formatter.ledgerCurrency(ModelTransforms.bigDecimalAmountForSplit(split)));
         }
         writer.println();
       }
     }
-    try {
-      new LineReaderImpl(terminal).readLine("Export complete. Press any key to continue...");
-    } catch (IOException e) {
-      /* do nothing. */
-    }
+    return true;
   }
 
   private static String padString(String s, int len) {

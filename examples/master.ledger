@@ -1,0 +1,46 @@
+account Assets:Current Assets:Ally Checking
+account Assets:Current Assets:Ally Savings
+account Assets:Current Assets:Cash
+account Assets:Investments:Retirement:401K
+account Assets:Investments:Retirement:Roth IRA
+account Assets:Investments:Vanguard:VTSAX
+account Equity:Opening Balances
+account Expenses:Auto:Car Wash
+account Expenses:Auto:Fees
+account Expenses:Auto:Gas
+account Expenses:Auto:Parking
+account Expenses:Auto:Repair and Maintenance
+account Expenses:Auto:Tolls
+account Expenses:Bills:Auto Insurance
+account Expenses:Bills:Electric
+account Expenses:Bills:Gym
+account Expenses:Bills:Internet
+account Expenses:Bills:Mobile Phone
+account Expenses:Bills:Rental Insurance
+account Expenses:Bills:Streaming
+account Expenses:Entertainment:Music/Movies
+account Expenses:Entertainment:Recreation
+account Expenses:Food/Drink:Alcohol & Bars
+account Expenses:Food/Drink:Coffee Shops
+account Expenses:Food/Drink:Restaurants
+account Expenses:Groceries
+account Expenses:Health:Dentist
+account Expenses:Health:Doctor
+account Expenses:Miscellaneous
+account Expenses:Rent
+account Expenses:Shopping:Amazon/Online
+account Expenses:Shopping:Clothing
+account Expenses:Shopping:Electronics & Software
+account Expenses:Shopping:Misc
+account Expenses:Taxes
+account Expenses:Transportation:Public Transportation
+account Expenses:Transportation:Rental Car & Taxi
+account Expenses:Travel:Air Travel
+account Expenses:Travel:Hotel
+account Income:Interest Income:Checking Interest
+account Income:Interest Income:Savings Interest
+account Income:Retirement
+account Income:Salary
+account Liabilities:Credit Card:Capital One
+account Liabilities:Credit Card:Chase
+account Liabilities:Loans:Student Loan

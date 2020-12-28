@@ -1,8 +1,10 @@
 package net.brentwalther.jcf;
 
+import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.screen.LedgerExportScreen;
@@ -53,7 +55,8 @@ public class CsvMatcher {
         SplitMatcherScreen.start(
             matcher,
             /* modelToMatch= */ IndexedModel.create(importedModelFromCsv),
-            /* allKnownAccounts= */ jcfEnvironment.initialModel().getAccountList());
+            /* allInitiallyKnownAccountsById= */ Maps.uniqueIndex(
+                jcfEnvironment.initialModel().getAccountList(), Account::getId));
 
     String outputFilePath = outputFile.getAbsolutePath();
     int lastDotIndex = outputFilePath.lastIndexOf('.');
@@ -61,19 +64,24 @@ public class CsvMatcher {
         lastDotIndex > 0 && lastDotIndex < outputFilePath.length() - 1
             ? outputFilePath.substring(outputFilePath.lastIndexOf('.') + 1)
             : "";
+    boolean success = true;
     try {
       if (extension.equals(LEDGER_EXTENSION)) {
-        LedgerExportScreen.start(
-            IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
+        success =
+            LedgerExportScreen.start(
+                IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
       } else {
         LOGGER.atWarning().log(
             "Unknown file extension %s on output file path %s. Writing a ledger CLI text file there.",
             extension, outputFilePath);
-        LedgerExportScreen.start(
-            IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
+        success =
+            LedgerExportScreen.start(
+                IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
       }
     } catch (FileNotFoundException e) {
       LOGGER.atSevere().log("File could not be opened: %s", outputFile.getAbsolutePath());
     }
+    LOGGER.atInfo().log(
+        "Wrote file: %s - %s", success ? "yes" : "no", outputFile.getAbsolutePath());
   }
 }

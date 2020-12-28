@@ -2,6 +2,7 @@ package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import org.jline.terminal.Size;
 
 import java.util.List;
@@ -29,8 +30,8 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
     return builder(options).build();
   }
 
-  public static OptionsPrompt.Builder builder(List<String> options) {
-    return new Builder(options);
+  public static OptionsPrompt.Builder builder(List<? extends Object> options) {
+    return new Builder(Lists.transform(options, (option) -> option.toString()));
   }
 
   @Override

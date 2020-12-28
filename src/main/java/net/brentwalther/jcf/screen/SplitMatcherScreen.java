@@ -1,13 +1,18 @@
 package net.brentwalther.jcf.screen;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.flogger.FluentLogger;
 import net.brentwalther.jcf.TerminalProvider;
 import net.brentwalther.jcf.matcher.SplitMatcher;
+import net.brentwalther.jcf.matcher.SplitMatcher.Match;
+import net.brentwalther.jcf.matcher.SplitMatcher.MatchResult;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
@@ -15,12 +20,11 @@ import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelGenerator;
 import net.brentwalther.jcf.model.ModelTransforms;
-import net.brentwalther.jcf.prompt.NoticePrompt;
+import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.PromptBuilder;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.prompt.SpecialCharacters;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.math.BigDecimal;
@@ -30,55 +34,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.google.common.base.Strings.repeat;
-
 public class SplitMatcherScreen {
 
+  /** A singleton account to represent an unknown account, which is a natural imbalance. */
   private static final Account UNMATCHED_PHANTOM_ACCOUNT =
       Account.newBuilder().setId("Imbalance").setName("Imbalance").build();
 
-  private static final Account MULTISPLIT_SYNTHESIZED_ACCOUNT_OPTION =
-      Account.newBuilder().setId("MULTISPLIT").setName("Split multiple ways...").build();
   private static final String QUAD_SPACE_STRING = "    ";
+  private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
+
+  /** The maximum number of direct account match candidates to show to the user. */
+  private static final int MAX_NUM_MATCHES_SHOWN = 9;
 
   public static Model start(
-      SplitMatcher splitMatcher, IndexedModel modelToMatch, Iterable<Account> allKnownAccounts) {
+      SplitMatcher splitMatcher,
+      IndexedModel modelToMatch,
+      ImmutableMap<String, Account> allInitiallyKnownAccountsById) {
     ImmutableList<Transaction> transactionsToMatch = modelToMatch.getAllTransactions().asList();
-    Map<String, Account> allAccountsById = Maps.newHashMap(modelToMatch.immutableAccountsByIdMap());
-    ImmutableList.Builder<Split> allSplits =
-        ImmutableList.builderWithExpectedSize(transactionsToMatch.size() * 2);
+    Map<String, Account> allAccountsById = Maps.newHashMap(allInitiallyKnownAccountsById);
+    allAccountsById.putAll(modelToMatch.immutableAccountsByIdMap());
+    ImmutableList.Builder<Split> allSplits = ImmutableList.builder();
+    ImmutableList.Builder<Transaction> allTransactions = ImmutableList.builder();
     for (int i = 0; i < transactionsToMatch.size(); i++) {
       Transaction transaction = transactionsToMatch.get(i);
       List<Split> splitsForTransaction =
           new ArrayList<>(modelToMatch.splitsForTransaction(transaction));
-      int desiredNumSplits = 2;
-      while (splitsForTransaction.size() < desiredNumSplits) {
-        String transactionDescription = transaction.getDescription();
-        int longestAmountString =
+      int desiredNumMatchedSplits = 2;
+      while (splitsForTransaction.size() < desiredNumMatchedSplits) {
+        ImmutableList<String> allAccountNames =
+            ImmutableList.copyOf(Iterables.transform(allAccountsById.values(), Account::getName));
+
+        int maxAmountStringLength =
             splitsForTransaction.stream()
                 .map(ModelTransforms::bigDecimalAmountForSplit)
                 .map(Formatter::currency)
                 .mapToInt(String::length)
                 .max()
                 .orElse(4);
-
-        ImmutableList<Account> options =
-            ImmutableList.<Account>builder()
-                .addAll(
-                    splitMatcher.getTopMatches(
-                        transactionDescription,
-                        ImmutableSet.copyOf(
-                            Lists.transform(
-                                splitsForTransaction,
-                                split ->
-                                    allAccountsById.getOrDefault(
-                                        split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)))))
-                .add(UNMATCHED_PHANTOM_ACCOUNT)
-                .add(MULTISPLIT_SYNTHESIZED_ACCOUNT_OPTION)
-                .build();
-
-        ImmutableMap<String, Account> accountsByName =
-            Maps.uniqueIndex(allKnownAccounts, Account::getName);
 
         ImmutableList<String> statusMessages =
             ImmutableList.of(
@@ -88,81 +80,99 @@ public class SplitMatcherScreen {
                 .add(
                     Formatter.date(Instant.ofEpochSecond(transaction.getPostDateEpochSecond()))
                         + " - "
-                        + transactionDescription)
+                        + transaction.getDescription())
                 .addAll(
                     FluentIterable.from(splitsForTransaction)
                         .transform(
-                            (split ->
+                            (split) ->
                                 QUAD_SPACE_STRING
                                     + Formatter.truncateOrLeftPadTo(
-                                        longestAmountString,
+                                        maxAmountStringLength,
                                         Formatter.currency(
                                             ModelTransforms.bigDecimalAmountForSplit(split)))
                                     + QUAD_SPACE_STRING
                                     + allAccountsById
                                         .getOrDefault(
                                             split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)
-                                        .getName())))
-                .add(
-                    QUAD_SPACE_STRING
-                        + repeat(SpecialCharacters.HORIZONTAL_LINE, longestAmountString + 4))
+                                        .getName()))
                 .build();
 
-        final int currentNumSplitsNeeded = desiredNumSplits;
+        ImmutableList<Match> matches =
+            splitMatcher.getTopMatches(
+                transaction,
+                ImmutableSet.copyOf(
+                    Lists.transform(
+                        splitsForTransaction,
+                        split ->
+                            allAccountsById.getOrDefault(
+                                split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT))));
+
+        ImmutableList.Builder<Option> optionsBuilder = ImmutableList.builder();
+        // Add all the partial confidence matches ordered by their confidence.
+        ImmutableList<Match> orderedMatches =
+            FluentIterable.from(matches)
+                .filter(match -> match.result().equals(MatchResult.PARTIAL_CONFIDENCE))
+                .toSortedList(Match.GREATEST_CONFIDENCE_FIRST_ORDERING);
+        optionsBuilder.addAll(
+            Lists.transform(
+                orderedMatches.subList(0, Math.min(orderedMatches.size(), MAX_NUM_MATCHES_SHOWN)),
+                (match) -> Option.create(match.account())));
+
+        // Always allow the user to just leave it unmatched.
+        optionsBuilder.add(Option.LEAVE_UNMATCHED);
+
+        // As a last option, give the user the option to skip it if it's probably a duplicate.
+        if (matches.stream()
+            .anyMatch(match -> match.result().equals(MatchResult.PROBABLE_DUPLICATE))) {
+          optionsBuilder.add(Option.SKIP_CONFIRM_DUPLICATE);
+        }
+
+        ImmutableList<Option> options = optionsBuilder.build();
         OptionsPrompt.Choice result =
             PromptEvaluator.showAndGetResult(
                 TerminalProvider.get(),
                 PromptDecorator.decorateWithStatusBars(
-                    OptionsPrompt.builder(
-                            Lists.transform(
-                                options,
-                                accountOption ->
-                                    accountOption.equals(MULTISPLIT_SYNTHESIZED_ACCOUNT_OPTION)
-                                        ? "Split more than " + currentNumSplitsNeeded + " ways."
-                                        : accountOption.getName()))
+                    OptionsPrompt.builder(options)
                         .withDefaultOption(1)
-                        .withAutoCompleteOptions(accountsByName.keySet())
+                        .withAutoCompleteOptions(allAccountNames)
                         .withPrefaces(prefaces)
                         .build(),
                     statusMessages));
 
         if (result == null) {
-          PromptEvaluator.showAndGetResult(
-              TerminalProvider.get(),
-              NoticePrompt.withMessages(ImmutableList.of("Aborting split matching.")));
+          LOGGER.atWarning().log("Aborting split matching due to missing input.");
           return ModelGenerator.empty();
         }
 
-        Account chosenAccount = UNMATCHED_PHANTOM_ACCOUNT;
+        Option option = null;
         switch (result.type) {
           case EMPTY:
-            // Nothing to do, the default chosenAccount is set to UNSELECTED.
+            // Nothing to do, the default option is set to null.
             break;
           case NUMBERED_OPTION:
-            chosenAccount = options.get(result.numberChoice);
+            option = options.get(result.numberChoice);
             break;
           case AUTOCOMPLETE_OPTION:
-            chosenAccount = accountsByName.get(result.autocompleteChoice);
+            Optional<Account> account =
+                allAccountsById.values().stream()
+                    .filter(
+                        knownAccount -> knownAccount.getName().equals(result.autocompleteChoice))
+                    .findFirst();
+            if (account.isPresent()) {
+              option = Option.create(account.get());
+            }
             break;
         }
-        if (chosenAccount.equals(MULTISPLIT_SYNTHESIZED_ACCOUNT_OPTION)) {
-          desiredNumSplits++;
-        }
-        if (!chosenAccount.equals(UNMATCHED_PHANTOM_ACCOUNT)) {
-          splitMatcher.link(chosenAccount, transactionDescription);
-        }
-        allAccountsById.put(chosenAccount.getId(), chosenAccount);
-        BigDecimal splitAmount = BigDecimal.ZERO;
-        if (desiredNumSplits == splitsForTransaction.size() + 1) {
-          // This last split is apparently all we need for now, so go ahead and assume
-          // it takes the remaining amount.
-          splitAmount =
-              splitsForTransaction.stream()
-                  .map(ModelTransforms::bigDecimalAmountForSplit)
-                  .reduce(BigDecimal.ZERO, BigDecimal::add)
-                  .negate();
-        } else {
-          BigDecimal convertedInput =
+
+        if (option == Option.SPLIT_MULTIPLE_WAYS) {
+          Account account =
+              PromptEvaluator.showAndGetResult(
+                  TerminalProvider.get(), AccountPickerPrompt.create(allAccountsById.values()));
+          if (account == null) {
+            account = UNMATCHED_PHANTOM_ACCOUNT;
+          }
+
+          BigDecimal splitAmount =
               PromptEvaluator.showAndGetResult(
                   TerminalProvider.get(),
                   PromptBuilder.<BigDecimal>create()
@@ -177,20 +187,70 @@ public class SplitMatcherScreen {
                             }
                           })
                       .build());
-          if (convertedInput != null) {
-            splitAmount = convertedInput;
+          if (splitAmount != null) {
+            splitsForTransaction.add(
+                ModelGenerator.splitBuilderWithAmount(splitAmount)
+                    .setAccountId(account.getId())
+                    .setTransactionId(transaction.getId())
+                    .build());
           }
+        } else if (option == Option.SKIP_CONFIRM_DUPLICATE) {
+          // The user has confirmed that this transaction is a duplicate. Go ahead and
+          // skip matching it.
+          splitsForTransaction.clear();
+          break;
+        } else if (option == Option.LEAVE_UNMATCHED) {
+          desiredNumMatchedSplits--;
+        } else if (option.account().isPresent()) {
+          Split newSplit =
+              ModelGenerator.splitBuilderWithAmount(offsettingAmountOf(splitsForTransaction))
+                  .setAccountId(option.account().get().getId())
+                  .setTransactionId(transaction.getId())
+                  .build();
+          splitsForTransaction.add(newSplit);
+          splitMatcher.link(transaction, newSplit);
         }
-        splitsForTransaction.add(
-            ModelGenerator.splitBuilderWithAmount(splitAmount)
-                .setAccountId(chosenAccount.getId())
-                .setTransactionId(transaction.getId())
-                .build());
       }
-      allSplits.addAll(splitsForTransaction);
+
+      if (!splitsForTransaction.isEmpty()) {
+        allTransactions.add(transaction);
+        allSplits.addAll(splitsForTransaction);
+      }
     }
 
     return ModelGenerator.create(
-        allAccountsById.values(), modelToMatch.getAllTransactions(), allSplits.build());
+        allAccountsById.values(), allTransactions.build(), allSplits.build());
+  }
+
+  /** Returns a BigDecimal which is the negation of the sum of all split amounts. */
+  private static BigDecimal offsettingAmountOf(List<Split> splitsForTransaction) {
+    return splitsForTransaction.stream()
+        .map(ModelTransforms::bigDecimalAmountForSplit)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)
+        .negate();
+  }
+
+  @AutoValue
+  public abstract static class Option {
+    public static final Option LEAVE_UNMATCHED = Option.create("Leave unmatched.");
+    public static final Option SPLIT_MULTIPLE_WAYS = Option.create("Split multiple ways.");
+    public static final Option SKIP_CONFIRM_DUPLICATE = Option.create("Skip. It is a duplicate.");
+
+    private static Option create(String s) {
+      return new AutoValue_SplitMatcherScreen_Option(s, Optional.empty());
+    }
+
+    public static Option create(Account account) {
+      return new AutoValue_SplitMatcherScreen_Option(account.getName(), Optional.of(account));
+    }
+
+    protected abstract String stringRepresentation();
+
+    public abstract Optional<Account> account();
+
+    @Override
+    public String toString() {
+      return stringRepresentation();
+    }
   }
 }
