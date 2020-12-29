@@ -1,6 +1,7 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.completer.StringsCompleter;
@@ -9,6 +10,8 @@ import org.jline.terminal.Terminal;
 import org.jline.utils.InfoCmp;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public class PromptEvaluator<T> {
@@ -29,7 +32,7 @@ public class PromptEvaluator<T> {
                 .terminal(terminal)
                 .completer(new StringsCompleter(prompt.getAutoCompleteOptions()))
                 .build()
-                .readLine("| " + prompt.getPromptString());
+                .readLine(prompt.getPromptString().trim() + " ");
       } catch (UserInterruptException e) {
         return null;
       }
@@ -43,16 +46,53 @@ public class PromptEvaluator<T> {
     ImmutableList<String> statusBars = prompt.getStatusBars();
     // The amount of room you have for instructions is reduced by the status bars and the
     // prompt line itself.
-    Size instructionsSize = new Size(size.getColumns(), size.getRows() - statusBars.size() - 5);
-    ImmutableList<String> instructions = prompt.getInstructions(instructionsSize);
-
-    writer.print(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
+    List<String> instructions = new ArrayList<>();
+    instructions.add(panelTopWithWidth(size.getColumns()));
     if (!statusBars.isEmpty()) {
-      statusBars.forEach(writer::println);
-      writer.println(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
+      instructions.addAll(
+          Lists.transform(
+              statusBars,
+              barText -> PromptEvaluator.wrapInVerticalLines(size.getColumns(), barText)));
+      instructions.add(panelDividerWithWidth(size.getColumns()));
     }
+    instructions.addAll(
+        Lists.transform(
+            prompt.getInstructions(
+                new Size(size.getColumns() - 2, size.getRows() - instructions.size() - 1)),
+            instruction -> PromptEvaluator.wrapInVerticalLines(size.getColumns(), instruction)));
+    instructions.add(panelBottomWithWidth(size.getColumns()));
+
+    // Flush them all to the writer.
     instructions.forEach(writer::println);
-    writer.println(duplicate(SpecialCharacters.HORIZONTAL_LINE, size.getColumns()));
+  }
+
+  private static String wrapInVerticalLines(int width, String base) {
+    return SpecialCharacters.VERTICAL_LINE
+        + rightPadOrTruncate(base, ' ', width - 2)
+        + SpecialCharacters.VERTICAL_LINE;
+  }
+
+  private static String rightPadOrTruncate(String base, char padChar, int width) {
+    String truncated = base.substring(0, Math.min(base.length(), width));
+    return truncated + duplicate(Character.toString(padChar), width - truncated.length());
+  }
+
+  private static String panelTopWithWidth(int width) {
+    return SpecialCharacters.TOP_LEFT_CORNER
+        + duplicate(SpecialCharacters.HORIZONTAL_LINE, width - 2)
+        + SpecialCharacters.TOP_RIGHT_CORNER;
+  }
+
+  private static String panelDividerWithWidth(int width) {
+    return SpecialCharacters.LEFT_DIVIDER
+        + duplicate(SpecialCharacters.HORIZONTAL_LINE, width - 2)
+        + SpecialCharacters.RIGHT_DIVIDER;
+  }
+
+  private static String panelBottomWithWidth(int width) {
+    return SpecialCharacters.BOTTOM_LEFT_CORNER
+        + duplicate(SpecialCharacters.HORIZONTAL_LINE, width - 2)
+        + SpecialCharacters.BOTTOM_RIGHT_CORNER;
   }
 
   private static String duplicate(String s, int times) {
