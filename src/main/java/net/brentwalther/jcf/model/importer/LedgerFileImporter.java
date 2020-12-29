@@ -183,8 +183,11 @@ public class LedgerFileImporter implements JcfModelImporter {
       }
     }
     LOGGER.atInfo().log(
-        "Imported %s accounts, %s transactions, and %s splits from ledger file.",
-        accountsById.size(), transactionsById.size(), splitsByTranscationId.size());
+        "Imported %s accounts, %s transactions, and %s splits from %s lines of a ledger CLI-compatible file.",
+        accountsById.size(),
+        transactionsById.size(),
+        splitsByTranscationId.size(),
+        ledgerFileLines.size());
     return ModelGenerator.create(
         accountsById.values(), transactionsById.values(), splitsByTranscationId.values());
   }
