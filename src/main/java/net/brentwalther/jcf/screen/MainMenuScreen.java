@@ -3,6 +3,7 @@ package net.brentwalther.jcf.screen;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import net.brentwalther.jcf.TerminalProvider;
+import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
@@ -16,8 +17,6 @@ import net.brentwalther.jcf.prompt.PromptEvaluator;
 import org.jline.terminal.Terminal;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -87,13 +86,8 @@ public class MainMenuScreen {
           break;
         case LEDGER_EXPORT:
           File ledgerFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
-          if (ledgerFile != null && ledgerFile.exists()) {
-            try {
-              LedgerExportScreen.start(
-                  IndexedModel.create(currentModel), new FileOutputStream(ledgerFile));
-            } catch (FileNotFoundException e) {
-              // Print an error.
-            }
+          if (ledgerFile != null && !ledgerFile.exists()) {
+            LedgerExporter.exportToFile(IndexedModel.create(currentModel), ledgerFile);
           }
         case EXIT:
           return;

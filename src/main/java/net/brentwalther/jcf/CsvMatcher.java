@@ -7,12 +7,10 @@ import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
-import net.brentwalther.jcf.screen.LedgerExportScreen;
+import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.util.Optional;
 
 public class CsvMatcher {
@@ -65,21 +63,13 @@ public class CsvMatcher {
             ? outputFilePath.substring(outputFilePath.lastIndexOf('.') + 1)
             : "";
     boolean success = true;
-    try {
-      if (extension.equals(LEDGER_EXTENSION)) {
-        success =
-            LedgerExportScreen.start(
-                IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
-      } else {
-        LOGGER.atWarning().log(
-            "Unknown file extension %s on output file path %s. Writing a ledger CLI text file there.",
-            extension, outputFilePath);
-        success =
-            LedgerExportScreen.start(
-                IndexedModel.create(modelToExport), new FileOutputStream(outputFile));
-      }
-    } catch (FileNotFoundException e) {
-      LOGGER.atSevere().log("File could not be opened: %s", outputFile.getAbsolutePath());
+    if (extension.equals(LEDGER_EXTENSION)) {
+      success = LedgerExporter.exportToFile(IndexedModel.create(modelToExport), outputFile);
+    } else {
+      LOGGER.atWarning().log(
+          "Unknown file extension %s on output file path %s. Writing a ledger CLI text file there.",
+          extension, outputFilePath);
+      success = LedgerExporter.exportToFile(IndexedModel.create(modelToExport), outputFile);
     }
     LOGGER.atInfo().log(
         "Wrote file: %s - %s", success ? "yes" : "no", outputFile.getAbsolutePath());
