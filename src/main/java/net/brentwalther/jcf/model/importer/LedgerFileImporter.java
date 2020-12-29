@@ -129,7 +129,7 @@ public class LedgerFileImporter implements JcfModelImporter {
         }
         currentSplits.add(splitBuilder.setAccountId(accountName).build());
       } else if (tokens.get(0).equals(ACCOUNT_NAME_PREFIX)) {
-        String accountName = tokens.get(1);
+        String accountName = spaceJoiner.join(FluentIterable.from(tokens).skip(1));
         if (accountsById.containsKey(accountName)) {
           LOGGER.atWarning().log(
               "Ledger file contains duplicate account declarations for: " + accountName);
