@@ -37,10 +37,11 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
   @Override
   public ImmutableList<String> getInstructions(Size size) {
     ImmutableList.Builder<String> instructions =
-        ImmutableList.builderWithExpectedSize(prefaces.size() + options.size());
+        ImmutableList.builderWithExpectedSize(prefaces.size() + options.size() + 1);
     instructions.addAll(prefaces);
+    instructions.add("");
     for (int i = 0; i < options.size(); i++) {
-      instructions.add("(" + (i + 1) + ") " + options.get(i));
+      instructions.add("(" + (i + 1) + (i < 10 ? ")  " : ") ") + options.get(i));
     }
     return instructions.build();
   }
@@ -48,7 +49,16 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
   @Override
   public String getPromptString() {
     StringBuilder promptStringBuilder =
-        new StringBuilder().append("Choose an option (1-").append(options.size()).append(")");
+        new StringBuilder()
+            .append("Enter an option number (1 of ")
+            .append(options.size())
+            .append("),");
+    if (!autoCompleteOptions.isEmpty()) {
+      promptStringBuilder
+          .append(" type a character and hit tab to autocomplete from ")
+          .append(autoCompleteOptions.size())
+          .append(" options,");
+    }
     if (defaultOption != null) {
       promptStringBuilder
           .append(" or hit enter to accept the default (")
