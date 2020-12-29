@@ -2,6 +2,7 @@ package net.brentwalther.jcf;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.base.Splitter;
@@ -273,17 +274,24 @@ public class JcfEnvironment {
   }
 
   private void applyProfile(SettingsProfile profile) {
+    String profileName = profile.getName().isEmpty() ? "global" : profile.getName();
     if (!profile.getCsvFieldPositions().getPositionList().isEmpty()) {
       csvFieldMapping =
           ImmutableMap.copyOf(
               FluentIterable.from(profile.getCsvFieldPositions().getPositionList())
                   .transform((fp) -> Maps.immutableEntry(fp.getField(), fp.getColumnIndex())));
+      LOGGER.atInfo().log(
+          "From profile '%s', using CSV field positions [%s]",
+          profileName, Joiner.on(", ").withKeyValueSeparator(" -> ").join(csvFieldMapping));
     }
     if (!profile.getCsvDateFormatJava().isEmpty()) {
       dateFormat = profile.getCsvDateFormatJava();
+      LOGGER.atInfo().log("From profile '%s', using CSV date format %s", profileName, dateFormat);
     }
     if (!profile.getCsvAccountName().isEmpty()) {
       csvAccountName = profile.getCsvAccountName();
+      LOGGER.atInfo().log(
+          "From profile '%s', assuming CSV import is from account %s", profileName, csvAccountName);
     }
   }
 
