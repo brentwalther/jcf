@@ -26,6 +26,10 @@ message SettingsProfile {
     CREDIT = 4;
     // The amount of the transaction interpreted literally.
     AMOUNT = 5;
+    // The amount of the transaction but negated (e.g. positive becomes
+    // negative and visa versa. You'd choose this if AMOUNT causes your
+    // splits to balance backwards.
+    NEGATED_AMOUNT = 6;
   }
   message CsvFieldPositions {
     // The position of a field specified as the 0-based column index

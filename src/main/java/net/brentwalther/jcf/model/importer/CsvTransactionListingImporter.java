@@ -33,6 +33,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   private static final ImmutableSet<ImmutableSet<DataField>> ACCEPTABLE_DATA_FIELD_COMBINATIONS =
       ImmutableSet.of(
           Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.AMOUNT),
+          Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.NEGATED_AMOUNT),
           Sets.immutableEnumSet(
               DataField.DATE, DataField.DESCRIPTION, DataField.CREDIT, DataField.DEBIT));
 
@@ -55,7 +56,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   }
 
   private static int parseDollarValueAsCents(String dollarValueString) {
-    return Integer.parseInt(dollarValueString.replace(".", "").replace("$", ""));
+    return Integer.parseInt(dollarValueString.replace(".", "").replace("$", "").replace(",", ""));
   }
 
   public static JcfModelImporter create(JcfEnvironment jcfEnvironment) {
@@ -162,12 +163,15 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
         continue;
       }
       String amount = getFieldValue(pieces, DataField.AMOUNT, csvFieldPositions);
+      String negatedAmount = getFieldValue(pieces, DataField.NEGATED_AMOUNT, csvFieldPositions);
       String debit = getFieldValue(pieces, DataField.DEBIT, csvFieldPositions);
       String credit = getFieldValue(pieces, DataField.CREDIT, csvFieldPositions);
       int valueNumerator = 0;
       int valueDenominator = 100;
       if (!amount.isEmpty()) {
         valueNumerator = parseDollarValueAsCents(amount);
+      } else if (!negatedAmount.isEmpty()) {
+        valueNumerator = -1 * parseDollarValueAsCents(negatedAmount);
       } else if (!credit.isEmpty()) {
         valueNumerator = parseDollarValueAsCents(credit);
       } else {
