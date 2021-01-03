@@ -62,11 +62,11 @@ public class IndexedModel {
   }
 
   public Account getAccountById(String accountId) {
-    return accountsById.getOrDefault(accountId, ModelGenerator.EMPTY_ACCOUNT);
+    return accountsById.getOrDefault(accountId, ModelGenerators.EMPTY_ACCOUNT);
   }
 
   public Transaction getTransactionById(String transactionId) {
-    return transactionsById.getOrDefault(transactionId, ModelGenerator.EMPTY_TRANSACTION);
+    return transactionsById.getOrDefault(transactionId, ModelGenerators.EMPTY_TRANSACTION);
   }
 
   public String stableIdentifier() {
@@ -80,7 +80,7 @@ public class IndexedModel {
   }
 
   public Model toProto() {
-    return ModelGenerator.create(
+    return ModelGenerators.create(
         accountsById.values(), transactionsById.values(), splitsByTransactionId.values());
   }
 }

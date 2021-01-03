@@ -3,6 +3,7 @@ package net.brentwalther.jcf.model.importer;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
@@ -15,9 +16,10 @@ import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Account.Type;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.model.ModelValidations;
 import net.brentwalther.jcf.util.Formatter;
@@ -29,14 +31,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class LedgerFileImporter implements JcfModelImporter {
 
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
 
   private static final String ACCOUNT_NAME_PREFIX = "account";
-  private static final Pattern USD_CURRENCY_PATTERN = Pattern.compile("[$]-?[0-9,]+([.]\\d+)?");
+  private static final Pattern CURRENCY_LIKE_AT_END_OF_LINE_PATTERN =
+      Pattern.compile("[$][-]?[0-9,]+([.]\\d+)?\\s*$");
   private static final ImmutableMap<Pattern, DateTimeFormatter> DATE_TIME_PATTERNS_TO_FORMATTERS =
       ImmutableMap.<Pattern, DateTimeFormatter>builder()
           .put(
@@ -46,8 +48,15 @@ public class LedgerFileImporter implements JcfModelImporter {
               Pattern.compile("[12]\\d{3}/\\d{2}/\\d{2}"),
               DateTimeFormatter.ofPattern("yyyy/MM/dd"))
           .build();
-  private static final Function<String, Account> ACCOUNT_GENERATOR =
-      (name) -> Account.newBuilder().setId(name).setName(name).build();
+  private static final ImmutableMap<String, Type>
+      ACCOUNT_TYPES_BY_LOWERCASE_TOP_LEVEL_ACCOUNT_NAMES =
+          ImmutableMap.<String, Type>builder()
+              .put("assets", Type.ASSET)
+              .put("liabilities", Type.LIABILITY)
+              .put("income", Type.INCOME)
+              .put("expenses", Type.EXPENSE)
+              .put("equity", Type.EQUITY)
+              .build();
 
   private final ImmutableList<String> ledgerFileLines;
 
@@ -57,6 +66,22 @@ public class LedgerFileImporter implements JcfModelImporter {
 
   public static LedgerFileImporter create(List<String> ledgerFileLines) {
     return new LedgerFileImporter(ledgerFileLines);
+  }
+
+  private static Account accountForLedgerName(String accountName) {
+    return ModelGenerators.simpleAccount(accountName).toBuilder()
+        .setType(
+            guessAccountType(
+                FluentIterable.from(Splitter.on(':').split(accountName)).first().or("")))
+        .build();
+  }
+
+  private static Type guessAccountType(String topLevelAccountName) {
+    if (Strings.isNullOrEmpty(topLevelAccountName)) {
+      return Type.UNKNOWN_TYPE;
+    }
+    return ACCOUNT_TYPES_BY_LOWERCASE_TOP_LEVEL_ACCOUNT_NAMES.getOrDefault(
+        topLevelAccountName.toLowerCase(), Type.UNKNOWN_TYPE);
   }
 
   public JcfModel.Model get() {
@@ -85,11 +110,11 @@ public class LedgerFileImporter implements JcfModelImporter {
           }
           if (!ModelValidations.areSplitsBalanced(currentSplits)) {
             LOGGER.atWarning().log(
-                "The transaction %s is not balanced!",
-                spaceJoiner.join(
-                    Formatter.ledgerDate(
-                        Instant.ofEpochSecond(currentTransaction.getPostDateEpochSecond())),
-                    currentTransaction.getDescription()));
+                "The transaction %s %s is not balanced! Splits are: [%s]",
+                Formatter.ledgerDate(
+                    Instant.ofEpochSecond(currentTransaction.getPostDateEpochSecond())),
+                currentTransaction.getDescription(),
+                Joiner.on(", ").join(currentSplits));
           }
           transactionsById.put(currentTransaction.getId(), currentTransaction);
           splitsByTranscationId.putAll(currentTransaction.getId(), currentSplits);
@@ -101,42 +126,49 @@ public class LedgerFileImporter implements JcfModelImporter {
 
       List<String> tokens = spaceSplitter.splitToList(line);
 
-      // If we've got a non-null currentTransaction it means we're in the middle of extracting it's
-      // splits. Try to parse the line as one.
+      // If we've got a non-null currentTransaction it means we're in the middle of extracting its
+      // splits. Try to parse this line as one.
       if (currentTransaction != null) {
-        Matcher currencyMatcher = USD_CURRENCY_PATTERN.matcher(line);
+        Matcher currencyMatcher = CURRENCY_LIKE_AT_END_OF_LINE_PATTERN.matcher(line);
         boolean foundAmount = currencyMatcher.find();
         if (!foundAmount && currentSplits.isEmpty()) {
-          LOGGER.atWarning().log("Expected to find a currency-like amount for line '%s'", line);
+          LOGGER.atWarning().log(
+              "Expected to but could not find a currency-like amount on line '%s'.\nSkipping it.",
+              line);
           continue;
         }
         BigDecimal amount =
             foundAmount
-                ? new BigDecimal(line.substring(currencyMatcher.start()).trim().replace("$", ""))
+                ? new BigDecimal(
+                    // Create a big decimal from the regular base-10 number the matcher found,
+                    // stripping formatting characters first.
+                    line.substring(currencyMatcher.start(), currencyMatcher.end())
+                        .trim()
+                        .replace("$", "")
+                        .replace(",", ""))
                 : currentSplits.stream()
                     .map(ModelTransforms::bigDecimalAmountForSplit)
                     .reduce(BigDecimal.ZERO, (first, second) -> first.add(second))
                     .negate();
         Split.Builder splitBuilder =
-            ModelGenerator.splitBuilderWithAmount(amount)
+            ModelGenerators.splitBuilderWithAmount(amount)
                 .setTransactionId(currentTransaction.getId());
-        String accountName =
-            foundAmount ? line.substring(0, currencyMatcher.start()).trim() : line.trim();
-        if (!accountsById.containsKey(accountName)) {
-          LOGGER.atInfo().log(
-              "Account did not already exist by name %s. Creating it.", accountName);
-          accountsById.computeIfAbsent(accountName, ACCOUNT_GENERATOR);
+        Account account =
+            accountForLedgerName(
+                foundAmount ? line.substring(0, currencyMatcher.start()).trim() : line.trim());
+        if (!accountsById.containsKey(account.getId())) {
+          LOGGER.atInfo().log("Creating new account: %s", account);
+          accountsById.put(account.getId(), account);
         }
-        currentSplits.add(splitBuilder.setAccountId(accountName).build());
+        currentSplits.add(splitBuilder.setAccountId(account.getId()).build());
       } else if (tokens.get(0).equals(ACCOUNT_NAME_PREFIX)) {
-        String accountName = spaceJoiner.join(FluentIterable.from(tokens).skip(1));
-        if (accountsById.containsKey(accountName)) {
-          LOGGER.atWarning().log(
-              "Ledger file contains duplicate account declarations for: " + accountName);
-          continue;
+        FluentIterable<String> rest = FluentIterable.from(tokens).skip(1);
+        String accountName = spaceJoiner.join(rest);
+        Account account = accountForLedgerName(accountName);
+        if (!accountsById.containsKey(account.getId())) {
+          LOGGER.atInfo().log("Adding new account from explicit account declaration: %s", account);
+          accountsById.put(account.getId(), account);
         }
-        // TODO: It would be nice to fill in a more specific type for the account here.
-        accountsById.computeIfAbsent(accountName, ACCOUNT_GENERATOR);
       } else if (isProbableDate(tokens.get(0))) {
         Optional<Instant> maybeInstant = parseDateAsInstant(tokens.get(0));
         if (!maybeInstant.isPresent()) {
@@ -173,6 +205,7 @@ public class LedgerFileImporter implements JcfModelImporter {
                         .newHasher()
                         .putInt(transactionInstant.hashCode())
                         .putInt(transactionDescription.hashCode())
+                        .putDouble(Math.random())
                         .hash()
                         .toString())
                 .setDescription(transactionDescription)
@@ -188,7 +221,7 @@ public class LedgerFileImporter implements JcfModelImporter {
         transactionsById.size(),
         splitsByTranscationId.size(),
         ledgerFileLines.size());
-    return ModelGenerator.create(
+    return ModelGenerators.create(
         accountsById.values(), transactionsById.values(), splitsByTranscationId.values());
   }
 

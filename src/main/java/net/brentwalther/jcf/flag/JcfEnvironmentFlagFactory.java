@@ -10,11 +10,11 @@ public class JcfEnvironmentFlagFactory implements IStringConverterFactory {
       ImmutableMap.of(
           TextFileToLinesConverter.EagerlyLoadedTextFile.class, TextFileToLinesConverter.class);
 
+  /** Do not instantiate. Use {@link instance}. */
+  private JcfEnvironmentFlagFactory() {}
+
   @Override
   public Class<? extends IStringConverter<?>> getConverter(Class<?> aClass) {
     return CONVERTERS.get(aClass);
   }
-
-  /** Do not instantiate. Use {@link instance}. */
-  private JcfEnvironmentFlagFactory() {}
 }

@@ -20,7 +20,7 @@ import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,7 +39,7 @@ public class OfxConnector implements JcfModelImporter {
 
   public JcfModel.Model get() {
     if (!this.ofxFile.exists() || !this.ofxFile.isFile()) {
-      return ModelGenerator.empty();
+      return ModelGenerators.empty();
     }
 
     OFXReader ofxReader = new NanoXMLOFXReader();
@@ -133,7 +133,7 @@ public class OfxConnector implements JcfModelImporter {
                         .setDescription(transaction.getName())
                         .build();
                 Split split =
-                    ModelGenerator.splitBuilderWithAmount(transaction.getBigDecimalAmount())
+                    ModelGenerators.splitBuilderWithAmount(transaction.getBigDecimalAmount())
                         .setAccountId(account.getId())
                         .setTransactionId(jfcTransaction.getId())
                         .build();
@@ -147,13 +147,13 @@ public class OfxConnector implements JcfModelImporter {
             break;
         }
       }
-      return ModelGenerator.create(accounts.values(), transactions.values(), splits.values());
+      return ModelGenerators.create(accounts.values(), transactions.values(), splits.values());
     } catch (IOException e) {
-      return ModelGenerator.empty();
+      return ModelGenerators.empty();
     } catch (OFXParseException e) {
       e.printStackTrace();
     }
 
-    return ModelGenerator.empty();
+    return ModelGenerators.empty();
   }
 }

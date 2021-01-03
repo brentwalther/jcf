@@ -21,14 +21,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class ModelGenerator {
+public class ModelGenerators {
 
   public static final Account EMPTY_ACCOUNT = Account.getDefaultInstance();
   public static final Transaction EMPTY_TRANSACTION = Transaction.getDefaultInstance();
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
 
   public static Model empty() {
-    return ModelGenerator.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
+    return ModelGenerators.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
   }
 
   public static Model create(
@@ -143,6 +143,14 @@ public class ModelGenerator {
           .setValueNumerator(numerator.divide(d).intValueExact())
           .setValueDenominator(denominator.divide(d).intValueExact());
     }
+  }
+
+  public static Account simpleAccount(String accountName) {
+    return Account.newBuilder()
+        .setId(accountName)
+        .setName(accountName)
+        .setType(Account.Type.UNKNOWN_TYPE)
+        .build();
   }
 
   /** A callable interface representing a pending merge into a supplied base model. */

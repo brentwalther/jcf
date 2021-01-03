@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 
 public class ModelValidations {
   public static boolean areSplitsBalanced(Iterable<Split> splits) {
-    return FluentIterable.from(splits).transform(ModelTransforms::bigDecimalAmountForSplit).toList()
+    return FluentIterable.from(splits)
+            .transform(ModelTransforms::bigDecimalAmountForSplit)
+            .toList()
             .stream()
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .compareTo(BigDecimal.ZERO)

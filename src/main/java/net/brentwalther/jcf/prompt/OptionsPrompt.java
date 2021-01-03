@@ -41,7 +41,7 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
     instructions.addAll(prefaces);
     instructions.add("");
     for (int i = 0; i < options.size(); i++) {
-      instructions.add("(" + (i + 1) + (i < 10 ? ")  " : ") ") + options.get(i));
+      instructions.add("(" + (i + 1) + (i < 9 ? ")  " : ") ") + options.get(i));
     }
     return instructions.build();
   }

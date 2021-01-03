@@ -117,7 +117,6 @@ public class FieldPositionChooser {
     return positions.containsKey(DataField.DESCRIPTION)
         && positions.containsKey(DataField.DATE)
         && (positions.containsKey(DataField.AMOUNT)
-            || (positions.containsKey(DataField.CREDIT)
-                && positions.containsKey(DataField.DEBIT)));
+            || (positions.containsKey(DataField.CREDIT) && positions.containsKey(DataField.DEBIT)));
   }
 }

@@ -7,6 +7,8 @@ java_library(
     srcs = glob([
         "src/main/java/net/brentwalther/jcf/**/*.java",
     ]),
+    # TODO: Break this up in to sub targets and remove this wide visibility.
+    visibility = ["//:__subpackages__"],
     deps = [
         ":autovalue",
         ":jcf_model_java_proto",
@@ -55,23 +57,9 @@ java_binary(
     ],
 )
 
-java_test(
-    name = "ledger_importer_test",
-    srcs = [
-        "src/test/java/net/brentwalther/jcf/model/importer/LedgerFileImporterTest.java",
-    ],
-    test_class = "net.brentwalther.jcf.model.importer.LedgerFileImporterTest",
-    deps = [
-        "//:jcf_main_lib",
-        "//:jcf_model_java_proto",
-        "@maven//:com_google_guava_guava",
-        "@maven//:com_google_truth_truth",
-        "@maven//:junit_junit",
-    ],
-)
-
 java_proto_library(
     name = "jcf_model_java_proto",
+    visibility = ["//:__subpackages__"],
     deps = [":jcf_model_proto"],
 )
 
@@ -84,6 +72,7 @@ proto_library(
 
 java_proto_library(
     name = "jcf_settings_profile_java_proto",
+    visibility = ["//:__subpackages__"],
     deps = [":jcf_settings_profile_proto"],
 )
 

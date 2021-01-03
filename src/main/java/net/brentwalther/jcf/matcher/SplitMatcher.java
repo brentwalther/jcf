@@ -1,13 +1,12 @@
 package net.brentwalther.jcf.matcher;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Multiset;
@@ -26,6 +25,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Predicates.not;
 
 public class SplitMatcher {
 
@@ -100,7 +100,7 @@ public class SplitMatcher {
    * from most to least confident.
    */
   public ImmutableList<Match> getTopMatches(
-      Transaction transaction, ImmutableSet<Account> accountsToExclude) {
+      Transaction transaction, ShouldExcludePredicate shouldExcludePredicate) {
     ImmutableList.Builder<Match> matchesBuilder = ImmutableList.builder();
 
     for (Split split : transactionDescriptionTokenIndex.get(transaction.getDescription())) {
@@ -129,13 +129,11 @@ public class SplitMatcher {
             initiallyKnownAccountsById.getOrDefault(split.getAccountId(), INVALID_ACCOUNT));
       }
     }
-    for (Account accountToRemove :
-        Iterables.concat(accountsToExclude, ImmutableList.of(INVALID_ACCOUNT))) {
-      potentialAccounts.setCount(accountToRemove, 0);
-    }
+    potentialAccounts.setCount(INVALID_ACCOUNT, 0);
     int maxCount = potentialAccounts.entrySet().stream().mapToInt(Entry::getCount).max().orElse(1);
     matchesBuilder.addAll(
         FluentIterable.from(potentialAccounts.entrySet())
+            .filter(entry -> not(shouldExcludePredicate).apply(entry.getElement()))
             .transform(
                 (entry) ->
                     Match.withProbability(entry.getElement(), 1.0 * entry.getCount() / maxCount)));
@@ -146,6 +144,8 @@ public class SplitMatcher {
     PARTIAL_CONFIDENCE,
     PROBABLE_DUPLICATE,
   }
+
+  public interface ShouldExcludePredicate extends Predicate<Account> {}
 
   @AutoValue
   public abstract static class Match {

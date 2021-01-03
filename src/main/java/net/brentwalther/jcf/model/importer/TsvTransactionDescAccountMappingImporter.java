@@ -6,7 +6,7 @@ import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -62,6 +62,6 @@ public class TsvTransactionDescAccountMappingImporter implements JcfModelImporte
               .setValueDenominator(1)
               .build());
     }
-    return ModelGenerator.create(accountsById.values(), transactions, splits);
+    return ModelGenerators.create(accountsById.values(), transactions, splits);
   }
 }

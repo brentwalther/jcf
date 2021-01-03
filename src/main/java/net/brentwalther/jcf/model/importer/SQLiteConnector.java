@@ -8,7 +8,7 @@ import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 
 import java.io.File;
 import java.sql.Connection;
@@ -117,14 +117,14 @@ public class SQLiteConnector implements JcfModelImporter {
         System.err.println("Could not initialize transactions. Matcher did not match.");
       }
 
-      return ModelGenerator.create(
+      return ModelGenerators.create(
           accountsById.values(), transactionsById.values(), splitsByTransactionId.values());
 
     } catch (SQLException e) {
       // if the error message is "out of memory",
       // it probably means no database file is found
       System.err.println(e.getMessage());
-      return ModelGenerator.empty();
+      return ModelGenerators.empty();
     } finally {
       try {
         if (connection != null) {
@@ -133,7 +133,7 @@ public class SQLiteConnector implements JcfModelImporter {
       } catch (SQLException e) {
         // connection close failed.
         System.err.println(e.getMessage());
-        return ModelGenerator.empty();
+        return ModelGenerators.empty();
       }
     }
   }

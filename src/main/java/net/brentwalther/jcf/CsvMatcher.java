@@ -2,12 +2,12 @@ package net.brentwalther.jcf;
 
 import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
+import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
-import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
 
 import java.io.File;
@@ -25,7 +25,7 @@ public class CsvMatcher {
   }
 
   public static void main(String[] args) {
-    CsvMatcher csvMatcher = new CsvMatcher(JcfEnvironment.createFromArgs(args));
+    CsvMatcher csvMatcher = new CsvMatcher(JcfEnvironmentImpl.createFromArgs(args));
     csvMatcher.run();
   }
 

@@ -2,11 +2,9 @@ package net.brentwalther.jcf.model.importer;
 
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.truth.Correspondence;
-import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelTransforms;
+import net.brentwalther.jcf.testing.Correspondences;
 import org.junit.Test;
 
 import java.math.BigDecimal;
@@ -14,15 +12,6 @@ import java.math.BigDecimal;
 import static com.google.common.truth.Truth.assertThat;
 
 public class LedgerFileImporterTest {
-
-  private static final Correspondence<Account, String> ACCOUNT_NAME_CORRESPONDENCE =
-      Correspondence.transforming(Account::getName, "is an account with name");
-  private static final Correspondence<Transaction, String> TRANSACTION_DESCRIPTION_CORRESPONDENCE =
-      Correspondence.transforming(Transaction::getDescription, "is a transaction with description");
-  private static final Correspondence<BigDecimal, BigDecimal> BIGDECIMAL_COMPARETO_CORRESPONDENCE =
-      Correspondence.from(
-          (first, second) -> first != null && second != null && first.compareTo(second) == 0,
-          "is a big decimal amount that compares equally");
 
   @Test
   public void testEmptyFile() {
@@ -48,7 +37,7 @@ public class LedgerFileImporterTest {
     Model model =
         LedgerFileImporter.create(ImmutableList.of("account Assets:Retirement:401k")).get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Assets:Retirement:401k");
     assertThat(model.getTransactionList()).isEmpty();
     assertThat(model.getSplitList()).isEmpty();
@@ -59,7 +48,7 @@ public class LedgerFileImporterTest {
     Model model =
         LedgerFileImporter.create(ImmutableList.of("account Assets:Credit Cards:Chase")).get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Assets:Credit Cards:Chase");
     assertThat(model.getTransactionList()).isEmpty();
     assertThat(model.getSplitList()).isEmpty();
@@ -75,15 +64,15 @@ public class LedgerFileImporterTest {
                     "  Expenses:Misc $99"))
             .get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Misc");
     assertThat(model.getTransactionList())
-        .comparingElementsUsing(TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Halloween superstore");
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsExactly(new BigDecimal("99"), new BigDecimal("-99"));
   }
 
@@ -97,15 +86,15 @@ public class LedgerFileImporterTest {
                     "  Expenses:Misc $99"))
             .get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Misc");
     assertThat(model.getTransactionList())
-        .comparingElementsUsing(TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Halloween superstore");
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsExactly(new BigDecimal("99"), new BigDecimal("-99"));
   }
 
@@ -121,15 +110,15 @@ public class LedgerFileImporterTest {
                     "  Expenses:Misc $99"))
             .get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Misc");
     assertThat(model.getTransactionList())
-        .comparingElementsUsing(TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Halloween superstore");
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsExactly(new BigDecimal("99"), new BigDecimal("-99"));
   }
 
@@ -144,15 +133,15 @@ public class LedgerFileImporterTest {
                     "  Expenses:Misc"))
             .get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Misc");
     assertThat(model.getTransactionList())
-        .comparingElementsUsing(TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Halloween superstore");
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsExactly(new BigDecimal("99"), new BigDecimal("-99"));
   }
 
@@ -169,12 +158,12 @@ public class LedgerFileImporterTest {
             .get();
     assertThat(model.getAccountList()).hasSize(4);
     assertThat(model.getTransactionList())
-        .comparingElementsUsing(TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Investment BUY");
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsExactly(
             new BigDecimal("-1000"),
             new BigDecimal("600"),
@@ -200,7 +189,7 @@ public class LedgerFileImporterTest {
                     "  Expenses:Auto:Gas $50"))
             .get();
     assertThat(model.getAccountList())
-        .comparingElementsUsing(ACCOUNT_NAME_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
         .containsExactly(
             "Liabilities:Credit Cards:Chase",
             "Expenses:Misc",
@@ -210,7 +199,34 @@ public class LedgerFileImporterTest {
     assertThat(
             FluentIterable.from(model.getSplitList())
                 .transform(ModelTransforms::bigDecimalAmountForSplit))
-        .comparingElementsUsing(BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
         .containsAtLeast(new BigDecimal("99"), new BigDecimal("75"), new BigDecimal("50"));
+  }
+
+  @Test
+  public void testDuplicateTransactionsAreOkay() {
+    Model model =
+        LedgerFileImporter.create(
+                ImmutableList.of(
+                    "2020-10-31 * Cool bar",
+                    "  Liabilities:Credit Cards:Chase  $-6.00",
+                    "  Expenses:Food/Drink:Alcohol & Bars",
+                    "",
+                    "2020-10-31 * Cool bar",
+                    "  Liabilities:Credit Cards:Chase  $-6.00",
+                    "  Expenses:Food/Drink:Alcohol & Bars",
+                    ""))
+            .get();
+    assertThat(model.getAccountList())
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
+        .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Food/Drink:Alcohol & Bars");
+    assertThat(model.getTransactionList())
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .containsExactly("Cool bar", "Cool bar");
+    assertThat(
+            FluentIterable.from(model.getSplitList())
+                .transform(ModelTransforms::bigDecimalAmountForSplit))
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .containsAtLeast(new BigDecimal("-6"), new BigDecimal("-6"));
   }
 }

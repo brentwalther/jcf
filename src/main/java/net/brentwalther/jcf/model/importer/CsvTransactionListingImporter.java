@@ -14,7 +14,7 @@ import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.util.Formatter;
 
 import java.time.Instant;
@@ -55,16 +55,16 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   }
 
   private static int parseDollarValueAsCents(String dollarValueString) {
-    return Integer.parseInt(dollarValueString.replace(".", ""));
+    return Integer.parseInt(dollarValueString.replace(".", "").replace("$", ""));
   }
 
   public static JcfModelImporter create(JcfEnvironment jcfEnvironment) {
     ImmutableList<String> inputCsvLines = jcfEnvironment.getInputCsvLines();
-    ImmutableMap<DataField, Integer> csvFieldMappings = jcfEnvironment.getCsvFieldMappings();
     if (inputCsvLines.isEmpty()) {
       LOGGER.atSevere().log("CSV input lines are unexpectedly empty. Returning a no-op importer.");
       return NO_OP_IMPORTER;
     }
+    ImmutableMap<DataField, Integer> csvFieldMappings = jcfEnvironment.getCsvFieldMappings();
     if (Sets.filter(
             ACCEPTABLE_DATA_FIELD_COMBINATIONS,
             (combination) -> Sets.difference(combination, csvFieldMappings.keySet()).isEmpty())
@@ -96,35 +96,43 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
     return ImmutableList.copyOf(
         new AbstractIterator<String>() {
 
-          private int lastTokenEnd = -1;
+          private int lastDelimiter = -1;
 
           @Override
           protected String computeNext() {
-            String nextToken = "";
-            while (nextToken.isEmpty()) {
-              if (lastTokenEnd == csvString.length()) {
-                return endOfData();
-              }
-              int tokenStart = lastTokenEnd + 1;
-              int nextTokenEnd = csvString.indexOf(",", tokenStart);
-              if (nextTokenEnd == -1) {
-                nextTokenEnd = csvString.length();
-              }
-              // If the start of this token is a quote, disregard any comments if we're able to find
-              // matching close quotations.
-              if (tokenStart < csvString.length() && csvString.charAt(tokenStart) == '"') {
-                // Add one to tokenStart to shave off the initial quote.
-                int quoteStart = tokenStart + 1;
-                int quoteEnd = csvString.indexOf("\"", quoteStart);
-                if (quoteEnd > quoteStart) {
-                  tokenStart = quoteStart;
-                  nextTokenEnd = quoteEnd;
-                }
-              }
-              nextToken = csvString.substring(tokenStart, nextTokenEnd);
-              lastTokenEnd = nextTokenEnd;
+            if (lastDelimiter >= csvString.length() - 1) {
+              return endOfData();
             }
-            return nextToken;
+            int firstTokenCharIndex = lastDelimiter + 1;
+            // If the next token is immediately another comma, don't go searching for the next one.
+            // Just return the empty string.
+            if (csvString.charAt(firstTokenCharIndex) == ',') {
+              lastDelimiter = firstTokenCharIndex;
+              return "";
+            }
+            // If the start of this token is a quote, we'll assume that this is supposed to be a
+            // quoted column and we need to find the closing parentheses.
+            if (csvString.charAt(firstTokenCharIndex) == '"') {
+              // Add one to tokenStart to shave off the initial quote.
+              int quoteStart = firstTokenCharIndex + 1;
+              int quoteEnd = csvString.indexOf("\"", quoteStart);
+              while (quoteEnd != -1 && csvString.charAt(quoteEnd - 1) == '\\') {
+                quoteEnd = csvString.indexOf("\"", quoteEnd + 1);
+              }
+              if (quoteEnd > quoteStart) {
+                lastDelimiter = quoteEnd + 1;
+                return csvString.substring(quoteStart + 1, quoteEnd);
+              }
+            }
+            // Otherwise just search for the next comma.
+            int nextDelimiterIndex = csvString.indexOf(",", firstTokenCharIndex);
+            if (nextDelimiterIndex == -1) {
+              lastDelimiter = csvString.length();
+              return csvString.substring(firstTokenCharIndex);
+            } else {
+              lastDelimiter = nextDelimiterIndex;
+              return csvString.substring(firstTokenCharIndex, nextDelimiterIndex);
+            }
           }
         });
   }
@@ -132,42 +140,44 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   @Override
   public Model get() {
     checkState(!csvLines.isEmpty());
-    List<String> columnHeaderNames = splitCsv(csvLines.get(0));
     Iterable<String> rest = Iterables.skip(csvLines, 1);
     List<Transaction> transactions = new ArrayList<>();
     List<Split> splits = new ArrayList<>();
     int id = 0;
     for (String line : rest) {
       List<String> pieces = splitCsv(line);
-      if (pieces.size() != columnHeaderNames.size()) {
-        // TODO: This is buggy because it skips lines that simply had an extra comma in them (lax
-        //   CSV format). We should as least try to parse it and see what happens.
+      String dateString = getFieldValue(pieces, DataField.DATE, csvFieldPositions);
+      if (dateString.isEmpty()) {
         LOGGER.atWarning().log(
-            "Line had %s comma-delimited fields but expected %s. Skipping it: '%s'",
-            pieces.size(), columnHeaderNames.size(), line);
+            "Did not find a date at index %s in comma-delimited line. Skipping it: '%s'",
+            csvFieldPositions.get(DataField.DATE), line);
         continue;
       }
-      Instant date =
-          Formatter.parseDateFrom(
-              pieces.get(csvFieldPositions.get(DataField.DATE)), dateTimeFormatter);
-      String desc = pieces.get(csvFieldPositions.get(DataField.DESCRIPTION));
+      Instant date = Formatter.parseDateFrom(dateString, dateTimeFormatter);
+      String description = getFieldValue(pieces, DataField.DESCRIPTION, csvFieldPositions);
+      if (description.isEmpty()) {
+        LOGGER.atWarning().log(
+            "Declared description index %s was empty in comma-delimited line. Skipping it: '%s'",
+            csvFieldPositions.get(DataField.DESCRIPTION), line);
+        continue;
+      }
+      String amount = getFieldValue(pieces, DataField.AMOUNT, csvFieldPositions);
+      String debit = getFieldValue(pieces, DataField.DEBIT, csvFieldPositions);
+      String credit = getFieldValue(pieces, DataField.CREDIT, csvFieldPositions);
       int valueNumerator = 0;
       int valueDenominator = 100;
-      if (csvFieldPositions.get(DataField.AMOUNT) != -1) {
-        valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.AMOUNT)));
-      } else if (pieces.get(csvFieldPositions.get(DataField.DEBIT)).isEmpty()) {
-        valueNumerator =
-            parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.CREDIT)));
+      if (!amount.isEmpty()) {
+        valueNumerator = parseDollarValueAsCents(amount);
+      } else if (!credit.isEmpty()) {
+        valueNumerator = parseDollarValueAsCents(credit);
       } else {
-        valueNumerator =
-            -1 * parseDollarValueAsCents(pieces.get(csvFieldPositions.get(DataField.DEBIT)));
+        valueNumerator = -1 * parseDollarValueAsCents(debit);
       }
       Transaction transaction =
           Transaction.newBuilder()
               .setId(String.valueOf(id++))
               .setPostDateEpochSecond(date.getEpochSecond())
-              .setDescription(desc)
+              .setDescription(description)
               .build();
       transactions.add(transaction);
       splits.add(
@@ -178,6 +188,18 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
               .setValueDenominator(valueDenominator)
               .build());
     }
-    return ModelGenerator.create(ImmutableList.of(fromAccount), transactions, splits);
+    return ModelGenerators.create(ImmutableList.of(fromAccount), transactions, splits);
+  }
+
+  private String getFieldValue(
+      List<String> pieces, DataField field, Map<DataField, Integer> csvFieldPositions) {
+    if (!csvFieldPositions.containsKey(field)) {
+      return "";
+    }
+    int index = csvFieldPositions.get(field);
+    if (index < 0 || index >= pieces.size()) {
+      return "";
+    }
+    return pieces.get(index);
   }
 }

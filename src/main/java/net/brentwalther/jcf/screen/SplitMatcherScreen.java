@@ -4,7 +4,6 @@ import com.google.auto.value.AutoValue;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -18,7 +17,7 @@ import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
@@ -100,12 +99,13 @@ public class SplitMatcherScreen {
         ImmutableList<Match> matches =
             splitMatcher.getTopMatches(
                 transaction,
-                ImmutableSet.copyOf(
-                    Lists.transform(
-                        splitsForTransaction,
-                        split ->
-                            allAccountsById.getOrDefault(
-                                split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT))));
+                /* shouldExcludePredicate= */ account ->
+                    FluentIterable.from(splitsForTransaction)
+                        .transform(
+                            split ->
+                                allAccountsById.getOrDefault(
+                                    split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT))
+                        .contains(account));
 
         ImmutableList.Builder<Option> optionsBuilder = ImmutableList.builder();
         // Add all the partial confidence matches ordered by their confidence.
@@ -140,8 +140,9 @@ public class SplitMatcherScreen {
                     statusMessages));
 
         if (result == null) {
-          LOGGER.atWarning().log("Aborting split matching due to missing input.");
-          return ModelGenerator.empty();
+          LOGGER.atWarning().log(
+              "Aborting split matching due to missing input. Did you Ctrl + C ?");
+          return ModelGenerators.empty();
         }
 
         Option option = null;
@@ -189,7 +190,7 @@ public class SplitMatcherScreen {
                       .build());
           if (splitAmount != null) {
             splitsForTransaction.add(
-                ModelGenerator.splitBuilderWithAmount(splitAmount)
+                ModelGenerators.splitBuilderWithAmount(splitAmount)
                     .setAccountId(account.getId())
                     .setTransactionId(transaction.getId())
                     .build());
@@ -203,7 +204,7 @@ public class SplitMatcherScreen {
           desiredNumMatchedSplits--;
         } else if (option.account().isPresent()) {
           Split newSplit =
-              ModelGenerator.splitBuilderWithAmount(offsettingAmountOf(splitsForTransaction))
+              ModelGenerators.splitBuilderWithAmount(offsettingAmountOf(splitsForTransaction))
                   .setAccountId(option.account().get().getId())
                   .setTransactionId(transaction.getId())
                   .build();
@@ -218,7 +219,7 @@ public class SplitMatcherScreen {
       }
     }
 
-    return ModelGenerator.create(
+    return ModelGenerators.create(
         allAccountsById.values(), allTransactions.build(), allSplits.build());
   }
 

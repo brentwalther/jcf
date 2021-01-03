@@ -43,6 +43,7 @@ maven_install(
         "com.google.truth:truth:1.1",
         "com.webcohesion.ofx4j:ofx4j:1.7",
         "org.jline:jline:3.1.3",
+        "org.mockito:mockito-all:1.10.19",
         "org.xerial:sqlite-jdbc:3.7.2",
         "junit:junit:4.12",
         # "org.hamcrest:hamcrest-library:1.3",

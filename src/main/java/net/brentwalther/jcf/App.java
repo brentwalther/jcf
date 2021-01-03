@@ -3,7 +3,7 @@ package net.brentwalther.jcf;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import net.brentwalther.jcf.model.JcfModel;
-import net.brentwalther.jcf.model.ModelGenerator;
+import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.importer.SQLiteConnector;
 import net.brentwalther.jcf.screen.MainMenuScreen;
 
@@ -34,7 +34,7 @@ public class App {
     Class.forName("org.sqlite.JDBC");
 
     File file = new File(sqliteDbFilePath);
-    JcfModel.Model model = ModelGenerator.empty();
+    JcfModel.Model model = ModelGenerators.empty();
     if (file.exists() && file.isFile()) {
       model = SQLiteConnector.create(file).get();
     }
