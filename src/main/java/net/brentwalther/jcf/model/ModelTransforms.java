@@ -1,9 +1,8 @@
 package net.brentwalther.jcf.model;
 
-import net.brentwalther.jcf.model.JcfModel.Split;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import net.brentwalther.jcf.model.JcfModel.Split;
 
 public class ModelTransforms {
   public static BigDecimal bigDecimalAmountForSplit(Split split) {

@@ -1,5 +1,8 @@
 package net.brentwalther.jcf.matcher;
 
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Predicates.not;
+
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
@@ -14,18 +17,14 @@ import com.google.common.collect.Multiset.Entry;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.regex.Pattern;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-
-import java.util.Comparator;
-import java.util.Map;
-import java.util.regex.Pattern;
-
-import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.base.Predicates.not;
 
 public class SplitMatcher {
 

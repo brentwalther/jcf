@@ -1,10 +1,9 @@
 package net.brentwalther.jcf.testing;
 
 import com.google.common.truth.Correspondence;
+import java.math.BigDecimal;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-
-import java.math.BigDecimal;
 
 /** Contains various correspondences to use with Google Truth assertThat() assertions. */
 public class Correspondences {

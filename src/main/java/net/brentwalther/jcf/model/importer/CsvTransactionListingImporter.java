@@ -1,5 +1,7 @@
 package net.brentwalther.jcf.model.importer;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
@@ -8,37 +10,78 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.JcfEnvironment;
-import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Model;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerators;
-import net.brentwalther.jcf.util.Formatter;
-
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import static com.google.common.base.Preconditions.checkState;
+import java.util.function.Function;
+import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
+import net.brentwalther.jcf.environment.JcfEnvironment;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.model.ModelGenerators;
+import net.brentwalther.jcf.string.Formatter;
 
 public class CsvTransactionListingImporter implements JcfModelImporter {
 
-  private static final JcfModelImporter NO_OP_IMPORTER = () -> Model.getDefaultInstance();
+  public static final Function<String, ImmutableList<String>> CSV_SPLITTER =
+      csvString ->
+          ImmutableList.copyOf(
+              new AbstractIterator<String>() {
 
+                private int lastDelimiter = -1;
+
+                @Override
+                protected String computeNext() {
+                  if (lastDelimiter >= csvString.length() - 1) {
+                    return endOfData();
+                  }
+                  int firstTokenCharIndex = lastDelimiter + 1;
+                  // If the next token is immediately another comma, don't go searching for the next
+                  // one.
+                  // Just return the empty string.
+                  if (csvString.charAt(firstTokenCharIndex) == ',') {
+                    lastDelimiter = firstTokenCharIndex;
+                    return "";
+                  }
+                  // If the start of this token is a quote, we'll assume that this is supposed to be
+                  // a
+                  // quoted column and we need to find the closing parentheses.
+                  if (csvString.charAt(firstTokenCharIndex) == '"') {
+                    // Add one to tokenStart to shave off the initial quote.
+                    int quoteStart = firstTokenCharIndex + 1;
+                    int quoteEnd = csvString.indexOf('"', quoteStart);
+                    while (quoteEnd != -1 && csvString.charAt(quoteEnd - 1) == '\\') {
+                      quoteEnd = csvString.indexOf('"', quoteEnd + 2);
+                    }
+                    if (quoteEnd > quoteStart) {
+                      lastDelimiter = quoteEnd + 1;
+                      return csvString.substring(quoteStart, quoteEnd);
+                    }
+                  }
+                  // Otherwise just search for the next comma.
+                  int nextDelimiterIndex = csvString.indexOf(",", firstTokenCharIndex);
+                  if (nextDelimiterIndex == -1) {
+                    lastDelimiter = csvString.length();
+                    return csvString.substring(firstTokenCharIndex);
+                  } else {
+                    lastDelimiter = nextDelimiterIndex;
+                    return csvString.substring(firstTokenCharIndex, nextDelimiterIndex);
+                  }
+                }
+              });
+  private static final JcfModelImporter NO_OP_IMPORTER = () -> Model.getDefaultInstance();
   private static final ImmutableSet<ImmutableSet<DataField>> ACCEPTABLE_DATA_FIELD_COMBINATIONS =
       ImmutableSet.of(
           Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.AMOUNT),
           Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.NEGATED_AMOUNT),
           Sets.immutableEnumSet(
               DataField.DATE, DataField.DESCRIPTION, DataField.CREDIT, DataField.DEBIT));
-
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
-
   private final ImmutableList<String> csvLines;
   private final Map<DataField, Integer> csvFieldPositions;
   private final DateTimeFormatter dateTimeFormatter;
@@ -55,7 +98,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
     this.fromAccount = fromAccount;
   }
 
-  private static int parseDollarValueAsCents(String dollarValueString) {
+  private static int parseCurrencyValueStringAsCents(String dollarValueString) {
     return Integer.parseInt(dollarValueString.replace(".", "").replace("$", "").replace(",", ""));
   }
 
@@ -66,10 +109,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       return NO_OP_IMPORTER;
     }
     ImmutableMap<DataField, Integer> csvFieldMappings = jcfEnvironment.getCsvFieldMappings();
-    if (Sets.filter(
-            ACCEPTABLE_DATA_FIELD_COMBINATIONS,
-            (combination) -> Sets.difference(combination, csvFieldMappings.keySet()).isEmpty())
-        .isEmpty()) {
+    if (!isAcceptableFieldMappingSet(csvFieldMappings.keySet())) {
       LOGGER.atSevere().log(
           "The input CSV field mappings are not sufficient. Returning a no-op importer. Found: [%s]. Wanted: [%s].",
           Joiner.on(", ").join(csvFieldMappings.keySet()),
@@ -93,49 +133,12 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
         inputCsvLines, csvFieldMappings, csvDateTimeFormatter.get(), csvAccount.get());
   }
 
-  private static ImmutableList<String> splitCsv(String csvString) {
-    return ImmutableList.copyOf(
-        new AbstractIterator<String>() {
-
-          private int lastDelimiter = -1;
-
-          @Override
-          protected String computeNext() {
-            if (lastDelimiter >= csvString.length() - 1) {
-              return endOfData();
-            }
-            int firstTokenCharIndex = lastDelimiter + 1;
-            // If the next token is immediately another comma, don't go searching for the next one.
-            // Just return the empty string.
-            if (csvString.charAt(firstTokenCharIndex) == ',') {
-              lastDelimiter = firstTokenCharIndex;
-              return "";
-            }
-            // If the start of this token is a quote, we'll assume that this is supposed to be a
-            // quoted column and we need to find the closing parentheses.
-            if (csvString.charAt(firstTokenCharIndex) == '"') {
-              // Add one to tokenStart to shave off the initial quote.
-              int quoteStart = firstTokenCharIndex + 1;
-              int quoteEnd = csvString.indexOf("\"", quoteStart);
-              while (quoteEnd != -1 && csvString.charAt(quoteEnd - 1) == '\\') {
-                quoteEnd = csvString.indexOf("\"", quoteEnd + 1);
-              }
-              if (quoteEnd > quoteStart) {
-                lastDelimiter = quoteEnd + 1;
-                return csvString.substring(quoteStart + 1, quoteEnd);
-              }
-            }
-            // Otherwise just search for the next comma.
-            int nextDelimiterIndex = csvString.indexOf(",", firstTokenCharIndex);
-            if (nextDelimiterIndex == -1) {
-              lastDelimiter = csvString.length();
-              return csvString.substring(firstTokenCharIndex);
-            } else {
-              lastDelimiter = nextDelimiterIndex;
-              return csvString.substring(firstTokenCharIndex, nextDelimiterIndex);
-            }
-          }
-        });
+  /** Returns true if the set of data fields is sufficient for attempting to do an import. */
+  public static boolean isAcceptableFieldMappingSet(ImmutableSet<DataField> fields) {
+    return !Sets.filter(
+            ACCEPTABLE_DATA_FIELD_COMBINATIONS,
+            (combination) -> Sets.difference(combination, fields).isEmpty())
+        .isEmpty();
   }
 
   @Override
@@ -146,7 +149,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
     List<Split> splits = new ArrayList<>();
     int id = 0;
     for (String line : rest) {
-      List<String> pieces = splitCsv(line);
+      List<String> pieces = CSV_SPLITTER.apply(line);
       String dateString = getFieldValue(pieces, DataField.DATE, csvFieldPositions);
       if (dateString.isEmpty()) {
         LOGGER.atWarning().log(
@@ -169,13 +172,13 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       int valueNumerator = 0;
       int valueDenominator = 100;
       if (!amount.isEmpty()) {
-        valueNumerator = parseDollarValueAsCents(amount);
+        valueNumerator = parseCurrencyValueStringAsCents(amount);
       } else if (!negatedAmount.isEmpty()) {
-        valueNumerator = -1 * parseDollarValueAsCents(negatedAmount);
+        valueNumerator = -1 * parseCurrencyValueStringAsCents(negatedAmount);
       } else if (!credit.isEmpty()) {
-        valueNumerator = parseDollarValueAsCents(credit);
+        valueNumerator = parseCurrencyValueStringAsCents(credit);
       } else {
-        valueNumerator = -1 * parseDollarValueAsCents(debit);
+        valueNumerator = -1 * parseCurrencyValueStringAsCents(debit);
       }
       Transaction transaction =
           Transaction.newBuilder()

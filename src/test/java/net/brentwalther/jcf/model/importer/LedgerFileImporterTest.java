@@ -1,15 +1,14 @@
 package net.brentwalther.jcf.model.importer;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import java.math.BigDecimal;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.testing.Correspondences;
 import org.junit.Test;
-
-import java.math.BigDecimal;
-
-import static com.google.common.truth.Truth.assertThat;
 
 public class LedgerFileImporterTest {
 

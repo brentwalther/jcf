@@ -9,9 +9,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
-
 import java.util.List;
+import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 
 public class DataFieldExtractor implements IStringConverter<ImmutableMap<DataField, Integer>> {
 

@@ -1,28 +1,27 @@
 # Bazel file for building and running JCF.
-
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
+package(default_visibility = ["//visibility:public"])
+
 java_library(
-    name = "jcf_main_lib",
-    srcs = glob([
-        "src/main/java/net/brentwalther/jcf/**/*.java",
-    ]),
-    # TODO: Break this up in to sub targets and remove this wide visibility.
-    visibility = ["//:__subpackages__"],
+    name = "jcf_environment_impl",
+    srcs = [
+        "src/main/java/net/brentwalther/jcf/JcfEnvironmentImpl.java",
+    ],
     deps = [
-        ":autovalue",
         ":jcf_model_java_proto",
         ":jcf_settings_profile_java_proto",
+        "//src/main/java/net/brentwalther/jcf/environment",
+        "//src/main/java/net/brentwalther/jcf/flag",
+        "//src/main/java/net/brentwalther/jcf/model",
+        "//src/main/java/net/brentwalther/jcf/model/importer",
+        "//src/main/java/net/brentwalther/jcf/prompt",
+        "//src/main/java/net/brentwalther/jcf/prompt:api",
+        "//src/main/java/net/brentwalther/jcf/prompt:terminal_printing_prompt_evaluator",
         "@maven//:com_beust_jcommander",
-        "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_flogger_flogger",
-        "@maven//:com_google_flogger_flogger_system_backend",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_protobuf_protobuf_java",
-        "@maven//:com_google_re2j_re2j",
-        "@maven//:com_webcohesion_ofx4j_ofx4j",
-        "@maven//:org_jline_jline",
-        "@maven//:org_xerial_sqlite_jdbc",
     ],
 )
 
@@ -33,11 +32,16 @@ java_binary(
     ],
     main_class = "net.brentwalther.jcf.App",
     deps = [
-        ":jcf_main_lib",
+        ":jcf_environment_impl",
         ":jcf_model_java_proto",
+        "//src/main/java/net/brentwalther/jcf/model",
+        "//src/main/java/net/brentwalther/jcf/model/importer",
+        "//src/main/java/net/brentwalther/jcf/prompt",
+        "//src/main/java/net/brentwalther/jcf/prompt:terminal_printing_prompt_evaluator",
+        "//src/main/java/net/brentwalther/jcf/screen",
         "@maven//:com_beust_jcommander",
-        # "@maven//:junit_junit"
-        # "@maven//:org_hamcrest_hamcrest_library",
+        "@maven//:com_google_flogger_flogger_system_backend",
+        "@maven//:org_jline_jline",
     ],
 )
 
@@ -48,11 +52,17 @@ java_binary(
     ],
     main_class = "net.brentwalther.jcf.CsvMatcher",
     deps = [
-        ":jcf_main_lib",
+        ":jcf_environment_impl",
         ":jcf_model_java_proto",
         ":jcf_settings_profile_java_proto",
-        "@maven//:com_beust_jcommander",
+        "//src/main/java/net/brentwalther/jcf/environment",
+        "//src/main/java/net/brentwalther/jcf/export",
+        "//src/main/java/net/brentwalther/jcf/matcher",
+        "//src/main/java/net/brentwalther/jcf/model",
+        "//src/main/java/net/brentwalther/jcf/model/importer",
+        "//src/main/java/net/brentwalther/jcf/screen",
         "@maven//:com_google_flogger_flogger",
+        "@maven//:com_google_flogger_flogger_system_backend",
         "@maven//:com_google_guava_guava",
     ],
 )

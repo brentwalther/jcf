@@ -14,6 +14,13 @@ import com.google.common.flogger.FluentLogger;
 import com.google.common.hash.Hashing;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Account.Type;
@@ -22,15 +29,7 @@ import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.model.ModelValidations;
-import net.brentwalther.jcf.util.Formatter;
-
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import net.brentwalther.jcf.string.Formatter;
 
 public class LedgerFileImporter implements JcfModelImporter {
 

@@ -8,18 +8,17 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.google.common.flogger.FluentLogger;
 import com.google.common.hash.Hashing;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Model;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.util.Formatter;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.string.Formatter;
 
 public class ModelGenerators {
 

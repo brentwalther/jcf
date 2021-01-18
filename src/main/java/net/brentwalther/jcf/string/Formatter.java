@@ -1,4 +1,6 @@
-package net.brentwalther.jcf.util;
+package net.brentwalther.jcf.string;
+
+import static com.google.common.base.Strings.repeat;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -7,8 +9,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
-
-import static com.google.common.base.Strings.repeat;
 
 public class Formatter {
   public static String currency(BigDecimal n) {

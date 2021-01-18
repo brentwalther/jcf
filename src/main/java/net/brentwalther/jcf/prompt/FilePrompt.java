@@ -2,11 +2,8 @@ package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import org.jline.terminal.Size;
-
 import java.io.File;
 import java.io.IOException;
-import java.util.Optional;
 
 public class FilePrompt implements Prompt<File> {
 
@@ -45,29 +42,29 @@ public class FilePrompt implements Prompt<File> {
   }
 
   @Override
-  public Optional<File> transform(String input) {
+  public Result<File> transform(String input) {
     File file = new File(input);
     if ((!file.exists() && mustExist)) {
-      return Optional.empty();
+      return Result.empty();
     }
     if (!file.exists()) {
       try {
         boolean success = file.createNewFile();
         if (!success) {
-          return Optional.empty();
+          return Result.empty();
         }
       } catch (IOException e) {
-        return Optional.empty();
+        return Result.empty();
       }
     }
     if (file.exists() && !file.isFile()) {
-      return Optional.empty();
+      return Result.empty();
     }
-    return Optional.of(file);
+    return Result.file(file);
   }
 
   @Override
-  public ImmutableList<String> getInstructions(Size size) {
+  public ImmutableList<String> getInstructions(SizeBounds size) {
     return ImmutableList.of();
   }
 }

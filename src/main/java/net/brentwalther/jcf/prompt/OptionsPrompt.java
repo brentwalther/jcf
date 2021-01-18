@@ -3,12 +3,9 @@ package net.brentwalther.jcf.prompt;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import org.jline.terminal.Size;
-
 import java.util.List;
-import java.util.Optional;
 
-public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
+public class OptionsPrompt implements Prompt<String> {
 
   private final ImmutableList<String> options;
   private final Integer defaultOption;
@@ -30,12 +27,13 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
     return builder(options).build();
   }
 
-  public static OptionsPrompt.Builder builder(List<? extends Object> options) {
-    return new Builder(Lists.transform(options, (option) -> option.toString()));
+  public static OptionsPrompt.Builder builder(List<?> options) {
+    return new Builder(
+        Lists.transform(options, (option) -> option == null ? "null" : option.toString()));
   }
 
   @Override
-  public ImmutableList<String> getInstructions(Size size) {
+  public ImmutableList<String> getInstructions(SizeBounds size) {
     ImmutableList.Builder<String> instructions =
         ImmutableList.builderWithExpectedSize(prefaces.size() + options.size() + 1);
     instructions.addAll(prefaces);
@@ -52,10 +50,10 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
         new StringBuilder()
             .append("Enter an option number (1 of ")
             .append(options.size())
-            .append("),");
+            .append(")");
     if (!autoCompleteOptions.isEmpty()) {
       promptStringBuilder
-          .append(" type a character and hit tab to autocomplete from ")
+          .append(", type a character and hit tab to autocomplete from, ")
           .append(autoCompleteOptions.size())
           .append(" options,");
     }
@@ -84,48 +82,26 @@ public class OptionsPrompt implements Prompt<OptionsPrompt.Choice> {
   }
 
   @Override
-  public Optional<Choice> transform(String input) {
+  public Result<String> transform(String input) {
     input = input.trim();
-    if (autoCompleteOptions.contains(input)) {
-      return Optional.of(new Choice(ChoiceType.AUTOCOMPLETE_OPTION, null, input));
+    if (autoCompleteOptions.contains(input) || options.contains(input)) {
+      return Result.string(input);
     }
-    try {
-      int option = -1;
-      if (input.isEmpty()) {
-        if (defaultOption != null) {
-          option = defaultOption;
-        } else {
-          return Optional.of(new Choice(ChoiceType.EMPTY, null, null));
-        }
-      } else {
+    int option = -1;
+    if (input.isEmpty()) {
+      if (defaultOption != null) {
+        option = defaultOption;
+      }
+    } else {
+      try {
         option = Integer.parseInt(input);
+      } catch (NumberFormatException e) {
+        // Nothing to do as option is already set to -1
       }
-      if (option > 0 && option <= options.size()) {
-        return Optional.of(new Choice(ChoiceType.NUMBERED_OPTION, option - 1, null));
-      } else {
-        return Optional.empty();
-      }
-    } catch (NumberFormatException e) {
-      return Optional.empty();
     }
-  }
-
-  public enum ChoiceType {
-    NUMBERED_OPTION,
-    AUTOCOMPLETE_OPTION,
-    EMPTY
-  }
-
-  public static class Choice {
-    public final ChoiceType type;
-    public final Integer numberChoice;
-    public final String autocompleteChoice;
-
-    public Choice(ChoiceType type, Integer numberChoice, String autocompleteChoice) {
-      this.type = type;
-      this.numberChoice = numberChoice;
-      this.autocompleteChoice = autocompleteChoice;
-    }
+    return option > 0 && option <= options.size()
+        ? Result.string(options.get(option - 1))
+        : Result.empty();
   }
 
   public static class Builder {

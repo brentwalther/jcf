@@ -2,9 +2,6 @@ package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import org.jline.terminal.Size;
-
-import java.util.Optional;
 
 public class PromptDecorator<T> implements Prompt<T> {
 
@@ -14,9 +11,8 @@ public class PromptDecorator<T> implements Prompt<T> {
     this.delegate = delegate;
   }
 
-  public static <T> Prompt<T> decorateWithStatusBars(
-      Prompt<T> prompt, ImmutableList<String> statusBars) {
-    return new PromptDecorator<T>(prompt) {
+  public static <TT> Prompt<TT> topStatusBars(Prompt<TT> prompt, ImmutableList<String> statusBars) {
+    return new PromptDecorator<TT>(prompt) {
       @Override
       public ImmutableList<String> getStatusBars() {
         return ImmutableList.<String>builder()
@@ -28,12 +24,12 @@ public class PromptDecorator<T> implements Prompt<T> {
   }
 
   @Override
-  public Optional<T> transform(String input) {
+  public Result<T> transform(String input) {
     return delegate.transform(input);
   }
 
   @Override
-  public ImmutableList<String> getInstructions(Size size) {
+  public ImmutableList<String> getInstructions(SizeBounds size) {
     return delegate.getInstructions(size);
   }
 

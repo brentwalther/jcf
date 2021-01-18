@@ -6,13 +6,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.model.IndexedModel;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelTransforms;
-import net.brentwalther.jcf.util.Formatter;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -26,6 +19,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.model.ModelTransforms;
+import net.brentwalther.jcf.string.Formatter;
 
 public class LedgerExporter {
 

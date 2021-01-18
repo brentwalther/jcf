@@ -2,11 +2,8 @@ package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import org.jline.terminal.Size;
 
-import java.util.Optional;
-
-public class NoticePrompt implements Prompt<Object> {
+public class NoticePrompt implements Prompt<Void> {
 
   private final ImmutableList<String> messages;
 
@@ -19,12 +16,12 @@ public class NoticePrompt implements Prompt<Object> {
   }
 
   @Override
-  public Optional<Object> transform(String input) {
-    return Optional.of(new Object());
+  public Result<Void> transform(String input) {
+    return Result.empty();
   }
 
   @Override
-  public ImmutableList<String> getInstructions(Size size) {
+  public ImmutableList<String> getInstructions(SizeBounds size) {
     return messages;
   }
 

@@ -7,13 +7,12 @@ import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimaps;
+import java.time.Instant;
+import java.util.Arrays;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
-
-import java.time.Instant;
-import java.util.Arrays;
 
 /**
  * An immutable indexed view of a {@link JcfModel.Model} proto. This data structure produces a more

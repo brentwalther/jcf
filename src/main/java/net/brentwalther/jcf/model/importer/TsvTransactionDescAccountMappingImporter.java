@@ -2,17 +2,16 @@ package net.brentwalther.jcf.model.importer;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
-import net.brentwalther.jcf.model.JcfModel;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerators;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.model.ModelGenerators;
 
 public class TsvTransactionDescAccountMappingImporter implements JcfModelImporter {
 

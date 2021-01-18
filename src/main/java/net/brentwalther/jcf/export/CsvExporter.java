@@ -1,18 +1,9 @@
-package net.brentwalther.jcf.screen;
+package net.brentwalther.jcf.export;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import net.brentwalther.jcf.TerminalProvider;
-import net.brentwalther.jcf.model.IndexedModel;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelTransforms;
-import net.brentwalther.jcf.prompt.NoticePrompt;
-import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.util.Formatter;
-
+import com.google.common.flogger.FluentLogger;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -21,8 +12,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import net.brentwalther.jcf.model.IndexedModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.model.ModelTransforms;
+import net.brentwalther.jcf.string.Formatter;
 
-public class CsvExportScreen {
+public class CsvExporter {
+
+  private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
 
   public static void start(
       IndexedModel indexedModel, File csvFile, Iterable<ExportFilter> filters) {
@@ -30,22 +29,10 @@ public class CsvExportScreen {
       List<ExportItem> exportItems = new ArrayList<>();
       for (Split split : indexedModel.getAllSplits()) {
         ExportItem exportItem =
-            new ExportItem() {
-              @Override
-              public Account account() {
-                return indexedModel.getAccountById(split.getAccountId());
-              }
-
-              @Override
-              public Transaction transaction() {
-                return indexedModel.getTransactionById(split.getTransactionId());
-              }
-
-              @Override
-              public Split split() {
-                return split;
-              }
-            };
+            ExportItem.create(
+                indexedModel.getAccountById(split.getAccountId()),
+                indexedModel.getTransactionById(split.getTransactionId()),
+                split);
         if (Iterables.any(filters, (filter) -> filter.shouldExclude(exportItem))) {
           continue;
         }
@@ -74,13 +61,8 @@ public class CsvExportScreen {
       printWriter.flush();
       printWriter.close();
     } catch (IOException e) {
-      PromptEvaluator.showAndGetResult(
-          TerminalProvider.get(),
-          NoticePrompt.withMessages(
-              ImmutableList.of(
-                  "Failed to export model " + indexedModel,
-                  "  to file: " + csvFile.getAbsolutePath(),
-                  "  due to exception: " + e)));
+      LOGGER.atSevere().withCause(e).log(
+          "Could not export CSV file to file: %s", csvFile.getAbsolutePath());
     }
   }
 
@@ -88,15 +70,21 @@ public class CsvExportScreen {
     return "\"" + s.replace("\"", "") + "\"";
   }
 
-  public interface ExportItem {
-    Account account();
-
-    Transaction transaction();
-
-    Split split();
-  }
-
   public interface ExportFilter {
     boolean shouldExclude(ExportItem exportItem);
+  }
+
+  @AutoValue
+  public abstract static class ExportItem {
+
+    public static ExportItem create(Account account, Transaction transaction, Split split) {
+      return new AutoValue_CsvExporter_ExportItem(account, transaction, split);
+    }
+
+    public abstract Account account();
+
+    public abstract Transaction transaction();
+
+    public abstract Split split();
   }
 }

@@ -1,11 +1,13 @@
 package net.brentwalther.jcf;
 
+import static com.google.common.base.Preconditions.checkElementIndex;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.base.Splitter;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Verify;
@@ -16,9 +18,17 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
 import com.google.protobuf.TextFormat;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.SettingsProto.SettingsProfiles;
+import net.brentwalther.jcf.environment.JcfEnvironment;
 import net.brentwalther.jcf.flag.CsvSetFlag;
 import net.brentwalther.jcf.flag.DataFieldExtractor;
 import net.brentwalther.jcf.flag.JcfEnvironmentFlagFactory;
@@ -29,30 +39,44 @@ import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.ModelGenerators;
+import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.model.importer.LedgerFileImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
+import net.brentwalther.jcf.prompt.DateTimeFormatPrompt;
+import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.screen.DateTimeFormatChooser;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import net.brentwalther.jcf.prompt.impl.TerminalPromptEvaluator;
 
 public class JcfEnvironmentImpl implements JcfEnvironment {
 
+  private static final Supplier<PromptEvaluator> LAZY_TERMINAL_PROMPT_EVALUATOR =
+      Suppliers.memoize(TerminalPromptEvaluator::createOrDie);
   /** The empty string, representing an unset string flag value. */
-  private static final String UNSET = "";
+  private static final String UNSET_FLAG = "";
 
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
-  private final Supplier<JCommander> commandLineParserSupplier =
+  private static final PromptEvaluator ERROR_LOGGING_EVALUATOR =
+      prompt -> {
+        LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
+        return null;
+      };
+  private static final ImmutableMap<EnvironmentType, Predicate<JcfEnvironment>>
+      IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND =
+          Maps.immutableEnumMap(
+              ImmutableMap.of(
+                  EnvironmentType.CSV_MATCHER,
+                  (env) ->
+                      CsvTransactionListingImporter.isAcceptableFieldMappingSet(
+                              env.getCsvFieldMappings().keySet())
+                          && env.getCsvDateFormat().isPresent()
+                          && env.getCsvAccount().isPresent()
+                          && env.getDeclaredOutputFile().isPresent()
+                          && !env.getInputCsvLines().isEmpty()));
+  private final EnvironmentType environmentType;
+  private final PromptEvaluator promptEvaluator;
+  private final Supplier<JCommander> lazyCommandLineParser =
       Suppliers.memoize(
           () ->
               JCommander.newBuilder()
@@ -60,9 +84,14 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
                   .addConverterFactory(JcfEnvironmentFlagFactory.INSTANCE)
                   .build());
 
+  @Parameter(description = "Main argument.")
+  private String mainArgument = UNSET_FLAG;
+
   @Parameter(
       names = {"--ledger_account_listing"},
-      description = "Optional. The file path to a ledger CLI format account listing file.")
+      description =
+          "Optional. The file path to a ledger CLI format account listing file. A ledger CLI account "
+              + "listing file is a file with lines of the format: account Account:Name")
   private EagerlyLoadedTextFile ledgerAccountListing = EagerlyLoadedTextFile.EMPTY;
 
   @Parameter(
@@ -141,7 +170,7 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       names = {"--help", "-h"},
       description = "Print this help text.",
       help = true)
-  private boolean help = false;
+  private boolean userWantsHelp = false;
 
   @Parameter(
       names = {"--csv_field_ordering"},
@@ -154,62 +183,34 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       names = {"--csv_date_format"},
       description =
           "Optional. The java.time.format.DateTimeFormatter compatible date format string for the date column in the CSV file (--transaction_csv).")
-  private String dateFormat = UNSET;
-
-  private final Supplier<Optional<DateTimeFormatter>> csvDateFormatSupplier =
-      Suppliers.memoize(
-          () -> {
-            if (!dateFormat.isEmpty()) {
-              return Optional.of(DateTimeFormatter.ofPattern(dateFormat));
-            }
-            final ImmutableMap<DataField, Integer> csvFieldMappings = getCsvFieldMappings();
-            final Splitter csvSplitter = Splitter.on(',').trimResults().omitEmptyStrings();
-            if (getInputCsvLines().isEmpty()) {
-              return Optional.empty();
-            }
-            return Optional.ofNullable(
-                DateTimeFormatChooser.obtainFormatForExamples(
-                    FluentIterable.from(getInputCsvLines())
-                        .skip(1)
-                        .limit(10)
-                        .filter(Predicates.notNull())
-                        .transform(
-                            (line) -> {
-                              List<String> fields = csvSplitter.splitToList(checkNotNull(line));
-                              Integer index = csvFieldMappings.get(DataField.DATE);
-                              checkNotNull(
-                                  index,
-                                  "No CSV field mapping declared field DATE. Please provide one.");
-                              Preconditions.checkState(
-                                  index >= 0 && index < fields.size(),
-                                  "CSV field index for DATE out of bounds " + index);
-                              return fields.get(index);
-                            })
-                        .filter(Predicates.notNull())));
-          });
+  private String dateFormat = UNSET_FLAG;
 
   @Parameter(
       names = {"--csv_account_name"},
       description =
           "Optional. The fully qualified name of the account for which the transactions in the CSV file "
               + "(--transaction_csv) are coming from.")
-  private String csvAccountName = UNSET;
+  private String csvAccountName = UNSET_FLAG;
 
-  private final Supplier<Account> csvAccountSupplier =
-      Suppliers.memoize(
-          () ->
-              csvAccountName.equals(UNSET)
-                  ? PromptEvaluator.showAndGetResult(
-                      net.brentwalther.jcf.TerminalProvider.get(),
-                      PromptDecorator.decorateWithStatusBars(
-                          AccountPickerPrompt.create(initialModel().getAccountList()),
-                          ImmutableList.of("Please choose the account this CSV file represents.")))
-                  : ModelGenerators.simpleAccount(csvAccountName));
+  private JcfEnvironmentImpl(EnvironmentType environmentType) {
+    this.environmentType = environmentType;
+    this.promptEvaluator = getPromptEvaluatorForEnvironment(environmentType);
+  }
 
-  public static JcfEnvironment createFromArgs(String[] args) {
-    JcfEnvironmentImpl context = new JcfEnvironmentImpl();
+  private static PromptEvaluator getPromptEvaluatorForEnvironment(EnvironmentType environmentType) {
+    switch (environmentType) {
+      case UNKNOWN:
+      case CSV_MATCHER:
+        return LAZY_TERMINAL_PROMPT_EVALUATOR.get();
+    }
+    return ERROR_LOGGING_EVALUATOR;
+  }
+
+  public static JcfEnvironment createFromArgsForEnv(
+      String[] args, EnvironmentType environmentType) {
+    JcfEnvironmentImpl context = new JcfEnvironmentImpl(environmentType);
     // Will initialize local @Parameter flags.
-    context.commandLineParserSupplier.get().parse(args);
+    context.lazyCommandLineParser.get().parse(args);
     context.applySettingsProfiles();
     return context;
   }
@@ -288,7 +289,7 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   }
 
   @Override
-  public Model initialModel() {
+  public Model getInitialModel() {
     return initialModelSupplier.get();
   }
 
@@ -302,7 +303,14 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
     if (getInputCsvLines().isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(csvAccountSupplier.get());
+    Result<?> result =
+        csvAccountName.equals(UNSET_FLAG)
+            ? promptEvaluator.blockingGetResult(
+                PromptDecorator.topStatusBars(
+                    AccountPickerPrompt.create(getInitialModel().getAccountList()),
+                    ImmutableList.of("Please choose the account this CSV file represents.")))
+            : Result.account(ModelGenerators.simpleAccount(csvAccountName));
+    return result == Result.EMPTY ? Optional.empty() : (Optional<Account>) result.instance();
   }
 
   @Override
@@ -310,7 +318,35 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
     if (getInputCsvLines().isEmpty()) {
       return Optional.empty();
     }
-    return csvDateFormatSupplier.get();
+    if (!dateFormat.isEmpty()) {
+      return Optional.of(DateTimeFormatter.ofPattern(dateFormat));
+    }
+    return Optional.ofNullable(
+            promptEvaluator.blockingGetResult(
+                DateTimeFormatPrompt.usingExamples(
+                    FluentIterable.from(getInputCsvLines())
+                        .skip(1)
+                        .limit(10)
+                        .filter(Predicates.notNull())
+                        .transform(
+                            (line) -> {
+                              List<String> fields =
+                                  CsvTransactionListingImporter.CSV_SPLITTER.apply(
+                                      checkNotNull(line));
+                              Integer index = getCsvFieldMappings().get(DataField.DATE);
+                              checkNotNull(
+                                  index,
+                                  "No CSV field mapping declared field DATE. Please provide one.");
+                              checkElementIndex(
+                                  index,
+                                  fields.size(),
+                                  "CSV field index for DATE was out of bounds");
+                              return fields.get(index);
+                            })
+                        .filter(Predicates.notNull()))))
+        .flatMap(Result::instance)
+        .filter(instance -> instance instanceof DateTimeFormatter)
+        .map(instance -> (DateTimeFormatter) instance);
   }
 
   @Override
@@ -325,11 +361,32 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
 
   @Override
   public boolean needsHelp() {
-    return help;
+    return userWantsHelp
+        || (environmentType.name.equals(mainArgument)
+            && !IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND
+                .getOrDefault(environmentType, Predicates.alwaysTrue())
+                .apply(this));
   }
 
   @Override
   public void printHelpTextTo(StringBuilder usageStringBuilder) {
-    commandLineParserSupplier.get().getUsageFormatter().usage(usageStringBuilder);
+    lazyCommandLineParser.get().getUsageFormatter().usage(usageStringBuilder);
+  }
+
+  @Override
+  public PromptEvaluator getPromptEvaluator() {
+    return promptEvaluator;
+  }
+
+  public enum EnvironmentType {
+    UNKNOWN(""),
+    CSV_MATCHER("csv_matcher"),
+    SWING_UI("swing_ui");
+
+    private final String name;
+
+    EnvironmentType(String name) {
+      this.name = name;
+    }
   }
 }

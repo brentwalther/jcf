@@ -1,7 +1,6 @@
 package net.brentwalther.jcf.flag;
 
 import com.beust.jcommander.IStringConverter;
-
 import java.io.File;
 import java.util.Optional;
 

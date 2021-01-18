@@ -3,11 +3,10 @@ package net.brentwalther.jcf.flag;
 import com.beust.jcommander.IStringConverter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.flag.TextFileToLinesConverter.EagerlyLoadedTextFile;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import net.brentwalther.jcf.flag.TextFileToLinesConverter.EagerlyLoadedTextFile;
 
 public class TextFileToLinesConverter implements IStringConverter<EagerlyLoadedTextFile> {
 

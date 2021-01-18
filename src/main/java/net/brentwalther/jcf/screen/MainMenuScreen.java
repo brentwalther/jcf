@@ -2,25 +2,28 @@ package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import net.brentwalther.jcf.TerminalProvider;
+import com.google.common.flogger.FluentLogger;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import net.brentwalther.jcf.export.CsvExporter;
 import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.importer.SQLiteConnector;
 import net.brentwalther.jcf.prompt.FilePrompt;
 import net.brentwalther.jcf.prompt.ModelPickerPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
+import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import org.jline.terminal.Terminal;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 public class MainMenuScreen {
+
+  private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
 
   private static final ImmutableMap<String, Screen> MAIN_MENU_OPTIONS =
       ImmutableMap.<String, Screen>builder()
@@ -32,52 +35,59 @@ public class MainMenuScreen {
           .put("Exit application", Screen.EXIT)
           .build();
 
-  public static void start(JcfModel.Model initialModel) {
-    Terminal terminal = TerminalProvider.get();
-    ImmutableList<String> options = MAIN_MENU_OPTIONS.keySet().asList();
-
+  public static void start(PromptEvaluator promptEvaluator, JcfModel.Model initialModel) {
     Model currentModel = initialModel;
     List<IndexedModel> unmergedModels = new ArrayList<>();
     while (true) {
       ImmutableList<String> statusBars =
           ImmutableList.of("Unmerged imports: " + unmergedModels.size());
-      OptionsPrompt.Choice selectedOption =
-          PromptEvaluator.showAndGetResult(
-              terminal,
-              PromptDecorator.decorateWithStatusBars(OptionsPrompt.create(options), statusBars));
-      if (selectedOption == null) {
+      Result result =
+          promptEvaluator.blockingGetResult(
+              PromptDecorator.topStatusBars(
+                  OptionsPrompt.create(MAIN_MENU_OPTIONS.keySet().asList()), statusBars));
+
+      if (result == null || !result.instance().isPresent()) {
         break;
       }
-      if (selectedOption.type == OptionsPrompt.ChoiceType.EMPTY) {
-        continue;
+
+      Screen nextState = MAIN_MENU_OPTIONS.get(result.instance().get());
+      if (nextState == null) {
+        break;
       }
-      // Just assume it is a number since we didn't pass in autocomplete options and it isn't empty.
-      Screen nextState = MAIN_MENU_OPTIONS.get(options.get(selectedOption.numberChoice));
       switch (nextState) {
         case LOAD_SQLITE:
-          File sqliteFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.existingFile());
-          if (sqliteFile != null) {
-            currentModel = SQLiteConnector.create(sqliteFile).get();
+          result = promptEvaluator.blockingGetResult(FilePrompt.existingFile());
+          if (result.instance().isPresent()) {
+            File file = (File) result.instance().get();
+            currentModel =
+                ModelGenerators.merge(SQLiteConnector.create(file).get()).into(currentModel);
           }
           break;
         case LOAD_OFX:
-          File ofxFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.existingFile());
-          if (ofxFile != null) {
-            unmergedModels.add(IndexedModel.create(OFXImportScreen.start(ofxFile)));
+          result = promptEvaluator.blockingGetResult(FilePrompt.existingFile());
+          if (result.instance().isPresent()) {
+            File file = (File) result.instance().get();
+            unmergedModels.add(IndexedModel.create(OFXImportScreen.start(promptEvaluator, file)));
           }
           break;
         case REVIEW_UNMERGED_MODELS:
-          IndexedModel modelToReview =
-              PromptEvaluator.showAndGetResult(terminal, ModelPickerPrompt.create(unmergedModels));
-          if (modelToReview != null) {
+          result = promptEvaluator.blockingGetResult(ModelPickerPrompt.create(unmergedModels));
+          if (result.instance().isPresent()) {
+            IndexedModel modelToReview = (IndexedModel) result.instance().get();
             unmergedModels.remove(modelToReview);
-            unmergedModels.add(ModelReviewScreen.start(modelToReview));
+            unmergedModels.add(ModelReviewScreen.start(promptEvaluator, modelToReview));
           }
           break;
         case CSV_EXPORT:
-          File csvFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
-          if (csvFile != null && csvFile.exists()) {
-            CsvExportScreen.start(
+          result = promptEvaluator.blockingGetResult(FilePrompt.existingFile());
+          if (result.instance().isPresent()) {
+            File csvFile = (File) result.instance().get();
+            if (csvFile.exists()) {
+              LOGGER.atWarning().log(
+                  "CSV file at %s already exists. Not overwriting it.", csvFile.getAbsolutePath());
+              break;
+            }
+            CsvExporter.start(
                 IndexedModel.create(currentModel),
                 csvFile,
                 /* filters= */ ImmutableList.of(
@@ -85,8 +95,15 @@ public class MainMenuScreen {
           }
           break;
         case LEDGER_EXPORT:
-          File ledgerFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
-          if (ledgerFile != null && !ledgerFile.exists()) {
+          result = promptEvaluator.blockingGetResult(FilePrompt.existingFile());
+          if (result.instance().isPresent()) {
+            File ledgerFile = (File) result.instance().get();
+            if (ledgerFile.exists()) {
+              LOGGER.atWarning().log(
+                  "Ledger file at %s already exists. Not overwriting it.",
+                  ledgerFile.getAbsolutePath());
+              break;
+            }
             LedgerExporter.exportToFile(IndexedModel.create(currentModel), ledgerFile);
           }
         case EXIT:

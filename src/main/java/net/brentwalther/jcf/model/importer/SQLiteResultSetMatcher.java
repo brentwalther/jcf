@@ -3,8 +3,6 @@ package net.brentwalther.jcf.model.importer;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import net.brentwalther.jcf.model.importer.SQLiteConnector.Field;
-
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -12,6 +10,7 @@ import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import net.brentwalther.jcf.model.importer.SQLiteConnector.Field;
 
 class SQLiteResultSetMatcher {
   private final ImmutableList<Field> requiredFields;

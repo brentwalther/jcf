@@ -1,20 +1,15 @@
 package net.brentwalther.jcf.screen;
 
 import com.google.common.collect.ImmutableList;
-import net.brentwalther.jcf.TerminalProvider;
+import java.io.File;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.importer.OfxConnector;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import org.jline.terminal.Terminal;
-
-import java.io.File;
 
 public class OFXImportScreen {
 
-  public static JcfModel.Model start(File file) {
-    Terminal terminal = TerminalProvider.get();
-
+  public static JcfModel.Model start(PromptEvaluator promptEvaluator, File file) {
     JcfModel.Model importedOfxModel = new OfxConnector(file).get();
 
     if (importedOfxModel.getSplitCount() == 0) {
@@ -24,7 +19,7 @@ public class OFXImportScreen {
 
     if (importedOfxModel.getAccountCount() != 1) {
       showErrorMessages(
-          terminal,
+          promptEvaluator,
           ImmutableList.of(
               "Expected OFX importer to import exactly one account but found: "
                   + importedOfxModel.getAccountCount()
@@ -32,8 +27,7 @@ public class OFXImportScreen {
       return JcfModel.Model.getDefaultInstance();
     }
 
-    PromptEvaluator.showAndGetResult(
-        TerminalProvider.get(),
+    promptEvaluator.blockingGetResult(
         NoticePrompt.withMessages(
             ImmutableList.of(
                 "Imported " + importedOfxModel.getAccountCount() + " accounts.",
@@ -43,9 +37,9 @@ public class OFXImportScreen {
     return importedOfxModel;
   }
 
-  private static void showErrorMessages(Terminal terminal, ImmutableList<String> errors) {
-    PromptEvaluator.showAndGetResult(
-        terminal,
+  private static void showErrorMessages(
+      PromptEvaluator promptEvaluator, ImmutableList<String> errors) {
+    promptEvaluator.blockingGetResult(
         NoticePrompt.withMessages(
             ImmutableList.<String>builderWithExpectedSize(errors.size() + 1)
                 .add("Error!")

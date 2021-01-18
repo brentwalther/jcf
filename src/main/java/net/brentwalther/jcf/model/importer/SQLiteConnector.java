@@ -4,12 +4,6 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
-import net.brentwalther.jcf.model.JcfModel;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelGenerators;
-
 import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -23,6 +17,12 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import net.brentwalther.jcf.model.JcfModel;
+import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Model;
+import net.brentwalther.jcf.model.JcfModel.Split;
+import net.brentwalther.jcf.model.JcfModel.Transaction;
+import net.brentwalther.jcf.model.ModelGenerators;
 
 public class SQLiteConnector implements JcfModelImporter {
 
@@ -32,7 +32,14 @@ public class SQLiteConnector implements JcfModelImporter {
     this.sqliteDatabase = sqliteDatabase;
   }
 
-  public static SQLiteConnector create(File sqliteDatabase) {
+  public static JcfModelImporter create(File sqliteDatabase) {
+    // Initialize the driver.
+    // TODO: Figure out why this is necessary.
+    try {
+      Class.forName("org.sqlite.JDBC");
+    } catch (ClassNotFoundException e) {
+      return Model::getDefaultInstance;
+    }
     return new SQLiteConnector(sqliteDatabase);
   }
 

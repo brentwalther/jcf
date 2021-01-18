@@ -1,9 +1,18 @@
 package net.brentwalther.jcf.model.importer;
 
+import static com.google.common.truth.Truth.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import net.brentwalther.jcf.JcfEnvironment;
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
+import net.brentwalther.jcf.environment.JcfEnvironment;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.ModelGenerators;
@@ -11,16 +20,6 @@ import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.testing.Correspondences;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import static com.google.common.truth.Truth.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CsvTransactionListingImporterTest {
 
@@ -197,6 +196,54 @@ public class CsvTransactionListingImporterTest {
     assertThat(model.getTransactionList())
         .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
         .containsExactly("Foobar");
+    assertThat(
+            model.getSplitList().stream()
+                .map(ModelTransforms::bigDecimalAmountForSplit)
+                .collect(Collectors.toList()))
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .containsExactly(new BigDecimal("50.00"));
+  }
+
+  @Test
+  public void testCsvWithQuotedValueNoEscapeChars() {
+    when(mockEnvironment.getInputCsvLines())
+        .thenReturn(
+            ImmutableList.of(
+                "Date,Desc,Amt,Card",
+                DEFAULT_DATE_TIME_FORMATTER.format(DEFAULT_DATE) + ",\"Foo,bar\",50.00,"));
+    when(mockEnvironment.getCsvFieldMappings())
+        .thenReturn(
+            ImmutableMap.of(DataField.DATE, 0, DataField.DESCRIPTION, 1, DataField.AMOUNT, 2));
+
+    Model model = CsvTransactionListingImporter.create(mockEnvironment).get();
+    assertThat(model.getAccountList()).containsExactly(DEFAULT_ACCOUNT);
+    assertThat(model.getTransactionList())
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .containsExactly("Foo,bar");
+    assertThat(
+            model.getSplitList().stream()
+                .map(ModelTransforms::bigDecimalAmountForSplit)
+                .collect(Collectors.toList()))
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .containsExactly(new BigDecimal("50.00"));
+  }
+
+  @Test
+  public void testCsvWithQuotedValueWithEscapeChars() {
+    when(mockEnvironment.getInputCsvLines())
+        .thenReturn(
+            ImmutableList.of(
+                "Date,Desc,Amt,Card",
+                DEFAULT_DATE_TIME_FORMATTER.format(DEFAULT_DATE) + ",\"Foo,\\\"bar\",50.00,"));
+    when(mockEnvironment.getCsvFieldMappings())
+        .thenReturn(
+            ImmutableMap.of(DataField.DATE, 0, DataField.DESCRIPTION, 1, DataField.AMOUNT, 2));
+
+    Model model = CsvTransactionListingImporter.create(mockEnvironment).get();
+    assertThat(model.getAccountList()).containsExactly(DEFAULT_ACCOUNT);
+    assertThat(model.getTransactionList())
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .containsExactly("Foo,\\\"bar");
     assertThat(
             model.getSplitList().stream()
                 .map(ModelTransforms::bigDecimalAmountForSplit)

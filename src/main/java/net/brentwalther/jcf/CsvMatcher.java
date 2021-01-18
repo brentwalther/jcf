@@ -2,6 +2,10 @@ package net.brentwalther.jcf;
 
 import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
+import java.io.File;
+import java.util.Optional;
+import net.brentwalther.jcf.JcfEnvironmentImpl.EnvironmentType;
+import net.brentwalther.jcf.environment.JcfEnvironment;
 import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.IndexedModel;
@@ -9,9 +13,6 @@ import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
-
-import java.io.File;
-import java.util.Optional;
 
 public class CsvMatcher {
 
@@ -25,7 +26,8 @@ public class CsvMatcher {
   }
 
   public static void main(String[] args) {
-    CsvMatcher csvMatcher = new CsvMatcher(JcfEnvironmentImpl.createFromArgs(args));
+    CsvMatcher csvMatcher =
+        new CsvMatcher(JcfEnvironmentImpl.createFromArgsForEnv(args, EnvironmentType.CSV_MATCHER));
     csvMatcher.run();
   }
 
@@ -47,14 +49,15 @@ public class CsvMatcher {
     }
     File outputFile = maybeOutputFile.get();
 
-    SplitMatcher matcher = SplitMatcher.create(jcfEnvironment.initialModel());
+    SplitMatcher matcher = SplitMatcher.create(jcfEnvironment.getInitialModel());
     Model importedModelFromCsv = CsvTransactionListingImporter.create(jcfEnvironment).get();
     Model modelToExport =
         SplitMatcherScreen.start(
+            jcfEnvironment.getPromptEvaluator(),
             matcher,
             /* modelToMatch= */ IndexedModel.create(importedModelFromCsv),
             /* allInitiallyKnownAccountsById= */ Maps.uniqueIndex(
-                jcfEnvironment.initialModel().getAccountList(), Account::getId));
+                jcfEnvironment.getInitialModel().getAccountList(), Account::getId));
 
     String outputFilePath = outputFile.getAbsolutePath();
     int lastDotIndex = outputFilePath.lastIndexOf('.');

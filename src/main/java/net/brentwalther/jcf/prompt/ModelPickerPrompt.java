@@ -1,23 +1,23 @@
 package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import net.brentwalther.jcf.model.IndexedModel;
-import org.jline.terminal.Size;
-
+import com.google.common.collect.Maps;
 import java.util.List;
-import java.util.Optional;
+import net.brentwalther.jcf.model.IndexedModel;
 
 public class ModelPickerPrompt implements Prompt<IndexedModel> {
+  private final ImmutableMap<String, IndexedModel> modelsByIdentifier;
   private final OptionsPrompt optionsPrompt;
-  private final ImmutableList<IndexedModel> modelGeneratorOptions;
 
   private ModelPickerPrompt(ImmutableList<IndexedModel> modelGeneratorOptions) {
+    this.modelsByIdentifier =
+        Maps.uniqueIndex(modelGeneratorOptions, IndexedModel::stableIdentifier);
     this.optionsPrompt =
         OptionsPrompt.create(
             Lists.transform(modelGeneratorOptions, IndexedModel::stableIdentifier));
-    this.modelGeneratorOptions = modelGeneratorOptions;
   }
 
   public static Prompt<IndexedModel> create(List<IndexedModel> modelGeneratorOptions) {
@@ -25,17 +25,18 @@ public class ModelPickerPrompt implements Prompt<IndexedModel> {
   }
 
   @Override
-  public Optional<IndexedModel> transform(String input) {
-    Optional<OptionsPrompt.Choice> selectedOption = optionsPrompt.transform(input);
-    if (selectedOption.isPresent() && selectedOption.get().type != OptionsPrompt.ChoiceType.EMPTY) {
-      // Assume the choice will always be a number.
-      return Optional.of(modelGeneratorOptions.get(selectedOption.get().numberChoice));
-    }
-    return Optional.empty();
+  public Result<IndexedModel> transform(String input) {
+    Result<String> selectedOption = optionsPrompt.transform(input);
+    // Assume the choice will always be a number.
+    return selectedOption
+        .instance()
+        .map(modelsByIdentifier::get)
+        .<Result<IndexedModel>>map(Result::model)
+        .orElse(Result.empty());
   }
 
   @Override
-  public ImmutableList<String> getInstructions(Size size) {
+  public ImmutableList<String> getInstructions(SizeBounds size) {
     return optionsPrompt.getInstructions(size);
   }
 

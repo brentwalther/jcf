@@ -12,7 +12,11 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multiset.Entry;
 import com.google.common.collect.Multisets;
-import net.brentwalther.jcf.TerminalProvider;
+import java.io.File;
+import java.util.Comparator;
+import java.util.Optional;
+import net.brentwalther.jcf.export.CsvExporter;
+import net.brentwalther.jcf.export.JcfModelExporter;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
@@ -22,12 +26,9 @@ import net.brentwalther.jcf.model.ModelValidations;
 import net.brentwalther.jcf.prompt.FilePrompt;
 import net.brentwalther.jcf.prompt.NoticePrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
+import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import org.jline.terminal.Terminal;
-
-import java.io.File;
-import java.util.Comparator;
 
 class ModelReviewScreen {
 
@@ -40,12 +41,7 @@ class ModelReviewScreen {
           .put("Export expenses to CSV", Screen.CSV_EXPORT)
           .build();
 
-  static IndexedModel start(IndexedModel indexedModel) {
-    ImmutableList<String> optionNames = OPTIONS.keySet().asList();
-
-    Terminal terminal = TerminalProvider.get();
-    int maxWidth = terminal.getWidth();
-
+  static IndexedModel start(PromptEvaluator promptEvaluator, IndexedModel indexedModel) {
     ImmutableList<Account> allAccounts = indexedModel.getAllAccounts().asList();
     String accountList =
         "- Accounts: " + Joiner.on(", ").join(Lists.transform(allAccounts, Account::getName));
@@ -60,39 +56,44 @@ class ModelReviewScreen {
     ImmutableList<String> prefaces =
         ImmutableList.of(
             "This model is not yet merged in to the main model. It includes:",
-            accountList.substring(0, Math.min(accountList.length(), maxWidth)),
+            accountList,
             transactionOverview);
 
-    OptionsPrompt.Choice selectedOption;
-    do {
-      selectedOption =
-          PromptEvaluator.showAndGetResult(
-              terminal,
-              PromptDecorator.decorateWithStatusBars(
-                  OptionsPrompt.builder(optionNames)
-                      .withDefaultOption(1)
-                      .withPrefaces(prefaces)
-                      .build(),
-                  ImmutableList.of("Reviewing: " + indexedModel)));
+    String selectedOption =
+        Optional.ofNullable(
+                promptEvaluator.blockingGetResult(
+                    PromptDecorator.topStatusBars(
+                        OptionsPrompt.builder(OPTIONS.keySet().asList())
+                            .withDefaultOption(1)
+                            .withPrefaces(prefaces)
+                            .build(),
+                        ImmutableList.of("Reviewing: " + indexedModel))))
+            .filter(r -> r != null)
+            .filter(r -> r.instance().isPresent())
+            .filter(r -> r.instance().get() instanceof String)
+            .map(r -> (String) r.instance().get())
+            .orElse("");
 
-      if (selectedOption == null) {
-        return indexedModel;
-      }
-    } while (selectedOption.type == OptionsPrompt.ChoiceType.EMPTY);
+    if (selectedOption.isEmpty() || !OPTIONS.containsKey(selectedOption)) {
+      return indexedModel;
+    }
 
     // Assume the option is numeric since we didn't pass in autocomplete options.
-    switch (OPTIONS.get(optionNames.get(selectedOption.numberChoice))) {
+    switch (OPTIONS.get(selectedOption)) {
       case MATCH_SPLITS:
         return IndexedModel.create(
             SplitMatcherScreen.start(
+                promptEvaluator,
                 SplitMatcher.create(indexedModel),
                 indexedModel,
                 indexedModel.immutableAccountsByIdMap()));
       case EXPORT_MODEL:
-        File modelFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
-        if (modelFile != null && modelFile.exists()) {
-          JcfExportScreen.start(indexedModel.toProto(), modelFile);
-        }
+        Optional.ofNullable(promptEvaluator.blockingGetResult(FilePrompt.anyFile()))
+            .filter(r -> r != null && r != Result.USER_INTERRUPT)
+            .flatMap(Result::instance)
+            .filter(instance -> instance instanceof File)
+            .map(instance -> (File) instance)
+            .ifPresent(file -> JcfModelExporter.start(indexedModel.toProto(), file));
         break;
       case CSV_EXPORT:
         Multiset<String> accountIdCounts =
@@ -104,8 +105,7 @@ class ModelReviewScreen {
                 .max(Comparator.comparingInt(Entry::getCount))
                 .orElse(Multisets.immutableEntry("", 0));
         if (mostFrequentlyOccurringAccountId.getCount() != indexedModel.getTransactionCount()) {
-          PromptEvaluator.showAndGetResult(
-              TerminalProvider.get(),
+          promptEvaluator.blockingGetResult(
               NoticePrompt.withMessages(
                   ImmutableList.of(
                       "This model cannot be exported to CSV unambiguously. There must at least *one* account",
@@ -114,16 +114,24 @@ class ModelReviewScreen {
         } else {
           Account mostFrequentlyOccurringAccount =
               indexedModel.getAccountById(mostFrequentlyOccurringAccountId.getElement());
-          File csvFile = PromptEvaluator.showAndGetResult(terminal, FilePrompt.anyFile());
-          if (csvFile != null && csvFile.exists()) {
-            CsvExportScreen.start(
-                indexedModel,
-                csvFile,
-                /* filters= */ ImmutableList.of(
-                    exportItem -> exportItem.account().equals(mostFrequentlyOccurringAccount),
-                    exportItem ->
-                        !exportItem.account().getType().equals(JcfModel.Account.Type.EXPENSE)));
-          }
+          Optional.ofNullable(promptEvaluator.blockingGetResult(FilePrompt.anyFile()))
+              .filter(r -> r != null && r != Result.USER_INTERRUPT)
+              .flatMap(Result::instance)
+              .filter(instance -> instance instanceof File)
+              .map(instance -> (File) instance)
+              .ifPresent(
+                  file ->
+                      CsvExporter.start(
+                          indexedModel,
+                          file,
+                          /* filters= */ ImmutableList.of(
+                              exportItem ->
+                                  exportItem.account().equals(mostFrequentlyOccurringAccount),
+                              exportItem ->
+                                  !exportItem
+                                      .account()
+                                      .getType()
+                                      .equals(JcfModel.Account.Type.EXPENSE))));
         }
         break;
       case EXIT:

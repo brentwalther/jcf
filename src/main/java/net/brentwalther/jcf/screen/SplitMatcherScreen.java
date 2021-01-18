@@ -8,7 +8,12 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
-import net.brentwalther.jcf.TerminalProvider;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.matcher.SplitMatcher.Match;
 import net.brentwalther.jcf.matcher.SplitMatcher.MatchResult;
@@ -21,17 +26,11 @@ import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
+import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptBuilder;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.util.Formatter;
-
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import net.brentwalther.jcf.string.Formatter;
 
 public class SplitMatcherScreen {
 
@@ -46,6 +45,7 @@ public class SplitMatcherScreen {
   private static final int MAX_NUM_MATCHES_SHOWN = 9;
 
   public static Model start(
+      PromptEvaluator promptEvaluator,
       SplitMatcher splitMatcher,
       IndexedModel modelToMatch,
       ImmutableMap<String, Account> allInitiallyKnownAccountsById) {
@@ -127,74 +127,65 @@ public class SplitMatcherScreen {
           optionsBuilder.add(Option.SKIP_CONFIRM_DUPLICATE);
         }
 
-        ImmutableList<Option> options = optionsBuilder.build();
-        OptionsPrompt.Choice result =
-            PromptEvaluator.showAndGetResult(
-                TerminalProvider.get(),
-                PromptDecorator.decorateWithStatusBars(
-                    OptionsPrompt.builder(options)
+        ImmutableMap<String, Option> options =
+            Maps.uniqueIndex(optionsBuilder.build(), Option::stringRepresentation);
+        Result result =
+            promptEvaluator.blockingGetResult(
+                PromptDecorator.topStatusBars(
+                    OptionsPrompt.builder(options.keySet().asList())
                         .withDefaultOption(1)
                         .withAutoCompleteOptions(allAccountNames)
                         .withPrefaces(prefaces)
                         .build(),
                     statusMessages));
 
-        if (result == null) {
+        if (result == null || !result.instance().isPresent() || result == Result.USER_INTERRUPT) {
           LOGGER.atWarning().log(
               "Aborting split matching due to missing input. Did you Ctrl + C ?");
           return ModelGenerators.empty();
         }
 
-        Option option = null;
-        switch (result.type) {
-          case EMPTY:
-            // Nothing to do, the default option is set to null.
-            break;
-          case NUMBERED_OPTION:
-            option = options.get(result.numberChoice);
-            break;
-          case AUTOCOMPLETE_OPTION:
-            Optional<Account> account =
-                allAccountsById.values().stream()
-                    .filter(
-                        knownAccount -> knownAccount.getName().equals(result.autocompleteChoice))
-                    .findFirst();
-            if (account.isPresent()) {
-              option = Option.create(account.get());
-            }
-            break;
+        String selectedOption = (String) result.instance().get();
+
+        if (!options.containsKey(selectedOption)) {
+          continue;
         }
 
+        Option option = options.get(selectedOption);
         if (option == Option.SPLIT_MULTIPLE_WAYS) {
-          Account account =
-              PromptEvaluator.showAndGetResult(
-                  TerminalProvider.get(), AccountPickerPrompt.create(allAccountsById.values()));
-          if (account == null) {
-            account = UNMATCHED_PHANTOM_ACCOUNT;
-          }
-
-          BigDecimal splitAmount =
-              PromptEvaluator.showAndGetResult(
-                  TerminalProvider.get(),
-                  PromptBuilder.<BigDecimal>create()
-                      .withPromptString(
-                          "Enter the amount for the split (w/ format [+-][0-9]+[.][0-9]+):")
-                      .withTransformer(
-                          input -> {
-                            try {
-                              return Optional.of(new BigDecimal(input));
-                            } catch (NumberFormatException e) {
-                              return Optional.empty();
-                            }
-                          })
-                      .build());
-          if (splitAmount != null) {
-            splitsForTransaction.add(
-                ModelGenerators.splitBuilderWithAmount(splitAmount)
-                    .setAccountId(account.getId())
-                    .setTransactionId(transaction.getId())
-                    .build());
-          }
+          Optional.ofNullable(
+                  promptEvaluator.blockingGetResult(
+                      AccountPickerPrompt.create(allAccountsById.values())))
+              .filter(r -> r != Result.USER_INTERRUPT)
+              .flatMap(Result::instance)
+              .filter(instance -> instance instanceof Account)
+              .map(instance -> (Account) instance)
+              .ifPresent(
+                  account ->
+                      Optional.ofNullable(
+                              promptEvaluator.blockingGetResult(
+                                  PromptBuilder.<BigDecimal>create()
+                                      .withPromptString(
+                                          "Enter the amount for the split (w/ format [+-][0-9]+[.][0-9]+):")
+                                      .withTransformer(
+                                          input -> {
+                                            try {
+                                              return Result.bigDecimal(new BigDecimal(input));
+                                            } catch (NumberFormatException e) {
+                                              return Result.empty();
+                                            }
+                                          })
+                                      .build()))
+                          .flatMap(Result::instance)
+                          .filter(instance -> instance instanceof BigDecimal)
+                          .map(instance -> (BigDecimal) instance)
+                          .ifPresent(
+                              splitAmount ->
+                                  splitsForTransaction.add(
+                                      ModelGenerators.splitBuilderWithAmount(splitAmount)
+                                          .setAccountId(account.getId())
+                                          .setTransactionId(transaction.getId())
+                                          .build())));
         } else if (option == Option.SKIP_CONFIRM_DUPLICATE) {
           // The user has confirmed that this transaction is a duplicate. Go ahead and
           // skip matching it.
