@@ -46,6 +46,24 @@ java_binary(
 )
 
 java_binary(
+    name = "jcf_swing",
+    srcs = [
+        "src/main/java/net/brentwalther/jcf/SwingApp.java",
+    ],
+    main_class = "net.brentwalther.jcf.SwingApp",
+    deps = [
+        ":jcf_environment_impl",
+        ":jcf_model_java_proto",
+        "//src/main/java/net/brentwalther/jcf/environment",
+        "//src/main/java/net/brentwalther/jcf/ui/swing",
+        "//src/main/java/net/brentwalther/jcf/ui/swing/impl",
+        "@maven//:com_beust_jcommander",
+        "@maven//:com_google_flogger_flogger_system_backend",
+        "@maven//:com_weblookandfeel_weblaf_ui",
+    ],
+)
+
+java_binary(
     name = "csv_matcher",
     srcs = [
         "src/main/java/net/brentwalther/jcf/CsvMatcher.java",

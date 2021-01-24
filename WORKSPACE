@@ -40,6 +40,7 @@ maven_install(
         "com.google.re2j:re2j:1.5",
         "com.google.truth:truth:1.1",
         "com.webcohesion.ofx4j:ofx4j:1.7",
+        "com.weblookandfeel:weblaf-ui:1.2.13",
         "org.jline:jline:3.1.3",
         "org.mockito:mockito-all:1.10.19",
         "org.xerial:sqlite-jdbc:3.7.2",
