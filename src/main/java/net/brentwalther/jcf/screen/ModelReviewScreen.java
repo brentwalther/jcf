@@ -12,7 +12,6 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multiset.Entry;
 import com.google.common.collect.Multisets;
-import java.io.File;
 import java.util.Comparator;
 import java.util.Optional;
 import net.brentwalther.jcf.export.CsvExporter;
@@ -68,10 +67,8 @@ class ModelReviewScreen {
                             .withPrefaces(prefaces)
                             .build(),
                         ImmutableList.of("Reviewing: " + indexedModel))))
-            .filter(r -> r != null)
-            .filter(r -> r.instance().isPresent())
-            .filter(r -> r.instance().get() instanceof String)
-            .map(r -> (String) r.instance().get())
+            .orElse(Result.empty())
+            .instance()
             .orElse("");
 
     if (selectedOption.isEmpty() || !OPTIONS.containsKey(selectedOption)) {
@@ -89,10 +86,8 @@ class ModelReviewScreen {
                 indexedModel.immutableAccountsByIdMap()));
       case EXPORT_MODEL:
         Optional.ofNullable(promptEvaluator.blockingGetResult(FilePrompt.anyFile()))
-            .filter(r -> r != null && r != Result.USER_INTERRUPT)
+            .filter(r -> !r.equals(Result.userInterrupt()))
             .flatMap(Result::instance)
-            .filter(instance -> instance instanceof File)
-            .map(instance -> (File) instance)
             .ifPresent(file -> JcfModelExporter.start(indexedModel.toProto(), file));
         break;
       case CSV_EXPORT:
@@ -115,10 +110,8 @@ class ModelReviewScreen {
           Account mostFrequentlyOccurringAccount =
               indexedModel.getAccountById(mostFrequentlyOccurringAccountId.getElement());
           Optional.ofNullable(promptEvaluator.blockingGetResult(FilePrompt.anyFile()))
-              .filter(r -> r != null && r != Result.USER_INTERRUPT)
+              .filter(r -> !r.equals(Result.userInterrupt()))
               .flatMap(Result::instance)
-              .filter(instance -> instance instanceof File)
-              .map(instance -> (File) instance)
               .ifPresent(
                   file ->
                       CsvExporter.start(

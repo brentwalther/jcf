@@ -39,11 +39,9 @@ public class LedgerExporter {
           "File to export to already exists. Not overwriting it: %s", file.getAbsolutePath());
       return false;
     }
-    if (indexedModel.getAllTransactions().isEmpty()
-        && indexedModel.getAllAccounts().isEmpty()
-        && indexedModel.getAllSplits().isEmpty()) {
+    if (indexedModel.getAllTransactions().isEmpty()) {
       LOGGER.atWarning().log(
-          "Model to export is empty. Not writing a file to: %s", file.getAbsolutePath());
+          "Model contains no transactions. Not writing a file to: %s", file.getAbsolutePath());
       return false;
     }
     try {

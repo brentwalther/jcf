@@ -2,7 +2,6 @@ package net.brentwalther.jcf.prompt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import java.util.List;
 
 public class OptionsPrompt implements Prompt<String> {
@@ -27,9 +26,8 @@ public class OptionsPrompt implements Prompt<String> {
     return builder(options).build();
   }
 
-  public static OptionsPrompt.Builder builder(List<?> options) {
-    return new Builder(
-        Lists.transform(options, (option) -> option == null ? "null" : option.toString()));
+  public static OptionsPrompt.Builder builder(List<String> options) {
+    return new Builder(options);
   }
 
   @Override

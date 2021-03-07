@@ -1,21 +1,30 @@
 package net.brentwalther.jcf.screen;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.auto.value.AutoValue;
+import com.google.common.base.Joiner;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.Ordering;
 import com.google.common.flogger.FluentLogger;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import net.brentwalther.jcf.matcher.SplitMatcher;
 import net.brentwalther.jcf.matcher.SplitMatcher.Match;
+import net.brentwalther.jcf.matcher.SplitMatcher.MatchData;
 import net.brentwalther.jcf.matcher.SplitMatcher.MatchResult;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
@@ -60,9 +69,6 @@ public class SplitMatcherScreen {
           new ArrayList<>(modelToMatch.splitsForTransaction(transaction));
       int desiredNumMatchedSplits = 2;
       while (splitsForTransaction.size() < desiredNumMatchedSplits) {
-        ImmutableList<String> allAccountNames =
-            ImmutableList.copyOf(Iterables.transform(allAccountsById.values(), Account::getName));
-
         int maxAmountStringLength =
             splitsForTransaction.stream()
                 .map(ModelTransforms::bigDecimalAmountForSplit)
@@ -99,67 +105,104 @@ public class SplitMatcherScreen {
         ImmutableList<Match> matches =
             splitMatcher.getTopMatches(
                 transaction,
+                splitsForTransaction,
                 /* shouldExcludePredicate= */ account ->
                     FluentIterable.from(splitsForTransaction)
                         .transform(
                             split ->
-                                allAccountsById.getOrDefault(
-                                    split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT))
-                        .contains(account));
+                                allAccountsById
+                                    .getOrDefault(split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)
+                                    .getName())
+                        .contains(account.getName()));
 
-        ImmutableList.Builder<Option> optionsBuilder = ImmutableList.builder();
         // Add all the partial confidence matches ordered by their confidence.
-        ImmutableList<Match> orderedMatches =
-            FluentIterable.from(matches)
-                .filter(match -> match.result().equals(MatchResult.PARTIAL_CONFIDENCE))
-                .toSortedList(Match.GREATEST_CONFIDENCE_FIRST_ORDERING);
-        optionsBuilder.addAll(
-            Lists.transform(
-                orderedMatches.subList(0, Math.min(orderedMatches.size(), MAX_NUM_MATCHES_SHOWN)),
-                (match) -> Option.create(match.account())));
+        Map<Account, Double> accountProbabilities = new HashMap<>();
+        for (Match match : matches) {
+          if (!match.result().equals(MatchResult.PARTIAL_CONFIDENCE)) {
+            continue;
+          }
+          checkState(match.matches().size() == 1);
+          accountProbabilities.compute(
+              match.matches().get(0).account(),
+              (account, existingProbability) ->
+                  match.confidence().orElse(0.0)
+                      + Optional.ofNullable(existingProbability).orElse(0.0));
+        }
+        ImmutableList<Account> topMatches =
+            FluentIterable.from(
+                    ImmutableSortedSet.copyOf(
+                            Ordering.natural()
+                                .onResultOf(
+                                    e -> Optional.ofNullable(e).map(Entry::getValue).orElse(0.0)),
+                            accountProbabilities.entrySet())
+                        .descendingSet())
+                .transform(Entry::getKey)
+                .limit(MAX_NUM_MATCHES_SHOWN)
+                .toList();
 
-        // Always allow the user to just leave it unmatched.
-        optionsBuilder.add(Option.LEAVE_UNMATCHED);
+        ImmutableList.Builder<Option> optionsBuilder =
+            ImmutableList.<Option>builder()
+                .addAll(Lists.transform(topMatches, Option::create))
+                // Always allow the user to just leave it unmatched.
+                .add(Option.LEAVE_UNMATCHED);
 
-        // As a last option, give the user the option to skip it if it's probably a duplicate.
-        if (matches.stream()
-            .anyMatch(match -> match.result().equals(MatchResult.PROBABLE_DUPLICATE))) {
-          optionsBuilder.add(Option.SKIP_CONFIRM_DUPLICATE);
+        // If the split matcher thought it could be a duplicate, allow the user to confirm that.
+        Optional<Match> duplicateMatchResult =
+            matches.stream()
+                .filter(match -> match.result().equals(MatchResult.PROBABLE_DUPLICATE))
+                .findFirst();
+        Option duplicateOption = null;
+        if (duplicateMatchResult.isPresent()) {
+          duplicateOption =
+              Option.create(
+                  "Skip. Found likely duplicate transactions occuring on: "
+                      + Joiner.on(",")
+                          .join(
+                              FluentIterable.from(duplicateMatchResult.get().matches())
+                                  .transform(MatchData::transaction)
+                                  .transform(t -> Instant.ofEpochSecond(t.getPostDateEpochSecond()))
+                                  .transform(Formatter::date)
+                                  .limit(5)));
+          optionsBuilder.add(duplicateOption);
         }
 
         ImmutableMap<String, Option> options =
             Maps.uniqueIndex(optionsBuilder.build(), Option::stringRepresentation);
-        Result result =
+        ImmutableListMultimap<String, Account> accountsByName =
+            Multimaps.index(allAccountsById.values(), Account::getName);
+        Result<String> result =
             promptEvaluator.blockingGetResult(
                 PromptDecorator.topStatusBars(
                     OptionsPrompt.builder(options.keySet().asList())
                         .withDefaultOption(1)
-                        .withAutoCompleteOptions(allAccountNames)
+                        .withAutoCompleteOptions(accountsByName.keySet())
                         .withPrefaces(prefaces)
                         .build(),
                     statusMessages));
 
-        if (result == null || !result.instance().isPresent() || result == Result.USER_INTERRUPT) {
+        if (result == null
+            || !result.instance().isPresent()
+            || Result.USER_INTERRUPT.equals(result)) {
           LOGGER.atWarning().log(
-              "Aborting split matching due to missing input. Did you Ctrl + C ?");
+              "Aborting split matching due to missing input. Did you <Ctrl> + C ?");
           return ModelGenerators.empty();
         }
 
-        String selectedOption = (String) result.instance().get();
+        String selectedOption = result.instance().get();
 
-        if (!options.containsKey(selectedOption)) {
+        if (!options.containsKey(selectedOption) && !accountsByName.containsKey(selectedOption)) {
           continue;
         }
-
-        Option option = options.get(selectedOption);
+        Option option =
+            options.containsKey(selectedOption)
+                ? options.get(selectedOption)
+                : Option.create(accountsByName.get(selectedOption).get(0));
         if (option == Option.SPLIT_MULTIPLE_WAYS) {
           Optional.ofNullable(
                   promptEvaluator.blockingGetResult(
                       AccountPickerPrompt.create(allAccountsById.values())))
-              .filter(r -> r != Result.USER_INTERRUPT)
+              .filter(r -> !Result.USER_INTERRUPT.equals(r))
               .flatMap(Result::instance)
-              .filter(instance -> instance instanceof Account)
-              .map(instance -> (Account) instance)
               .ifPresent(
                   account ->
                       Optional.ofNullable(
@@ -177,8 +220,6 @@ public class SplitMatcherScreen {
                                           })
                                       .build()))
                           .flatMap(Result::instance)
-                          .filter(instance -> instance instanceof BigDecimal)
-                          .map(instance -> (BigDecimal) instance)
                           .ifPresent(
                               splitAmount ->
                                   splitsForTransaction.add(
@@ -186,7 +227,7 @@ public class SplitMatcherScreen {
                                           .setAccountId(account.getId())
                                           .setTransactionId(transaction.getId())
                                           .build())));
-        } else if (option == Option.SKIP_CONFIRM_DUPLICATE) {
+        } else if (option == duplicateOption) {
           // The user has confirmed that this transaction is a duplicate. Go ahead and
           // skip matching it.
           splitsForTransaction.clear();

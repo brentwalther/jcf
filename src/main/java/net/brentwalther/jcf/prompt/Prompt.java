@@ -55,6 +55,12 @@ public interface Prompt<T> {
       return (Result<T>) EMPTY;
     }
 
+    // Casting to any type is safe because the optional is empty.
+    @SuppressWarnings("unchecked")
+    public static <T> Result<T> userInterrupt() {
+      return (Result<T>) USER_INTERRUPT;
+    }
+
     public static Result<File> file(File file) {
       return create(File.class, Optional.of(file));
     }

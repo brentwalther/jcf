@@ -44,6 +44,7 @@ import net.brentwalther.jcf.model.importer.LedgerFileImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.DateTimeFormatPrompt;
+import net.brentwalther.jcf.prompt.Prompt;
 import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
@@ -58,10 +59,13 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
 
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
   private static final PromptEvaluator ERROR_LOGGING_EVALUATOR =
-      prompt -> {
-        LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
-        return null;
-      };
+          new PromptEvaluator() {
+            @Override
+            public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
+              LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
+              return Result.empty();
+            }
+          };
   private static final ImmutableMap<EnvironmentType, Predicate<JcfEnvironment>>
       IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND =
           Maps.immutableEnumMap(
@@ -102,8 +106,7 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   @Parameter(
       names = {"--transaction_csv"},
       description =
-          "Required. The file path to a CSV format file which is a list of transactions from a single account, column names included.",
-      required = true)
+          "Required. The file path to a CSV format file which is a list of transactions from a single account, column names included.")
   private EagerlyLoadedTextFile inputCsv = EagerlyLoadedTextFile.EMPTY;
 
   @Parameter(
@@ -162,7 +165,6 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   @Parameter(
       names = {"--output"},
       description = "Required. Path to a file to output to. It should not already exist.",
-      required = true,
       converter = NonExistentFile.class)
   private Optional<File> outputFile = Optional.empty();
 
@@ -170,6 +172,7 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       names = {"--help", "-h"},
       description = "Print this help text.",
       help = true)
+
   private boolean userWantsHelp = false;
 
   @Parameter(

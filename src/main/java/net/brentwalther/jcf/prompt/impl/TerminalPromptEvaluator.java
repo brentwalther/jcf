@@ -103,7 +103,7 @@ public class TerminalPromptEvaluator implements PromptEvaluator {
   }
 
   @Override
-  public Result<?> blockingGetResult(Prompt<?> prompt) {
+  public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
     if (prompt.shouldClearScreen()) {
       terminal.puts(InfoCmp.Capability.clear_screen);
     }
@@ -119,7 +119,7 @@ public class TerminalPromptEvaluator implements PromptEvaluator {
                 .build()
                 .readLine(prompt.getPromptString().trim() + " ");
 
-        Result<?> result = prompt.transform(input);
+        Result<T> result = prompt.transform(input);
         if (result == Result.EMPTY) {
           terminal.writer().println("Invalid.");
           terminal.writer().flush();
@@ -128,9 +128,9 @@ public class TerminalPromptEvaluator implements PromptEvaluator {
         return result;
       }
     } catch (UserInterruptException e) {
-      return Result.USER_INTERRUPT;
+      return Result.userInterrupt();
     }
 
-    return Result.EMPTY;
+    return Result.empty();
   }
 }

@@ -2,23 +2,25 @@ package net.brentwalther.jcf.matcher;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Predicates.not;
+import static net.brentwalther.jcf.model.ModelTransforms.bigDecimalAmountForSplit;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Predicate;
 import com.google.common.base.Splitter;
 import com.google.common.collect.FluentIterable;
-import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultiset;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MultimapBuilder;
-import com.google.common.collect.Multiset;
-import com.google.common.collect.Multiset.Entry;
-import com.google.common.collect.Ordering;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import java.util.Comparator;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel;
@@ -32,7 +34,11 @@ public class SplitMatcher {
   private static final Pattern DOT_COM_PATTERN = Pattern.compile("[.][Cc][Oo][Mm]");
   private static final Pattern NON_ALPHANUM_CHAR_PATTERN = Pattern.compile("[^0-9A-Za-z]");
   private static final Pattern REPEATED_DIGITS_PATTERN = Pattern.compile("[0-9]{4,25}");
-  private static final Account INVALID_ACCOUNT = Account.newBuilder().setId("INVALID").build();
+  private static final ImmutableList<Function<String, String>> SANITIZERS =
+      ImmutableList.of(
+          s -> DOT_COM_PATTERN.matcher(s).replaceAll(""),
+          s -> NON_ALPHANUM_CHAR_PATTERN.matcher(s).replaceAll(" "),
+          s -> REPEATED_DIGITS_PATTERN.matcher(s).replaceAll(" "));
   private final ImmutableMap<String, Account> initiallyKnownAccountsById;
   private final ImmutableMap<String, Transaction> initiallyKnownTransactionsById;
   private final SetMultimap<String, Split> transactionDescriptionTokenIndex;
@@ -42,9 +48,9 @@ public class SplitMatcher {
       ImmutableMap<String, Account> initiallyKnownAccountsById,
       Iterable<Transaction> allTransactions) {
     this.initiallyKnownAccountsById = initiallyKnownAccountsById;
-    initiallyKnownTransactionsById = Maps.uniqueIndex(allTransactions, Transaction::getId);
-    newlyDiscoveredTransactionsById = Maps.newHashMap();
-    transactionDescriptionTokenIndex = MultimapBuilder.hashKeys().hashSetValues().build();
+    this.initiallyKnownTransactionsById = Maps.uniqueIndex(allTransactions, Transaction::getId);
+    this.newlyDiscoveredTransactionsById = Maps.newHashMap();
+    this.transactionDescriptionTokenIndex = MultimapBuilder.hashKeys().hashSetValues().build();
   }
 
   public static SplitMatcher create(JcfModel.Model proto) {
@@ -64,9 +70,10 @@ public class SplitMatcher {
 
   /** Returns the string with junk removed. */
   private static String sanitize(String s) {
-    s = DOT_COM_PATTERN.matcher(s).replaceAll("");
-    s = REPEATED_DIGITS_PATTERN.matcher(s).replaceAll("");
-    return NON_ALPHANUM_CHAR_PATTERN.matcher(s).replaceAll(" ");
+    for (Function<String, String> sanitizer : SANITIZERS) {
+      s = sanitizer.apply(s);
+    }
+    return s;
   }
 
   private static Iterable<String> tokenize(String s) {
@@ -99,44 +106,74 @@ public class SplitMatcher {
    * from most to least confident.
    */
   public ImmutableList<Match> getTopMatches(
-      Transaction transaction, ShouldExcludePredicate shouldExcludePredicate) {
+      Transaction transaction,
+      List<Split> splitsForTransaction,
+      ShouldExcludePredicate shouldExcludePredicate) {
     ImmutableList.Builder<Match> matchesBuilder = ImmutableList.builder();
 
-    for (Split split : transactionDescriptionTokenIndex.get(transaction.getDescription())) {
-      if (!Sets.union(
-                  initiallyKnownTransactionsById.keySet(), newlyDiscoveredTransactionsById.keySet())
-              .contains(split.getTransactionId())
-          || !initiallyKnownAccountsById.containsKey(split.getAccountId())) {
-        // We don't know what transaction or account this split belongs to. Disregard it.
-        continue;
+    for (Split existingSplit : transactionDescriptionTokenIndex.values()) {
+      // NOTE: This can quickly become slow if splitsForTransaction is very
+      // large. In practice it should only contain one split, but maybe a
+      // few.
+      BigDecimal splitAmount = bigDecimalAmountForSplit(existingSplit);
+      List<Split> probableDuplicates = new ArrayList<>();
+      for (Split split : splitsForTransaction) {
+        boolean hasSameAmount = splitAmount.compareTo(bigDecimalAmountForSplit(split)) == 0;
+        boolean hasSameAccount = split.getAccountId().equals(existingSplit.getAccountId());
+        boolean hasSamePostDate =
+            transactionForSplit(split).getPostDateEpochSecond()
+                == transactionForSplit(existingSplit).getPostDateEpochSecond();
+        if (hasSameAmount && (hasSameAccount || hasSamePostDate)) {
+          probableDuplicates.add(existingSplit);
+        }
       }
-      Transaction existingTransaction =
-          initiallyKnownTransactionsById.containsKey(split.getTransactionId())
-              ? initiallyKnownTransactionsById.get(split.getTransactionId())
-              : newlyDiscoveredTransactionsById.get(split.getTransactionId());
-      if (transaction.getPostDateEpochSecond() == existingTransaction.getPostDateEpochSecond()
-          && transaction.getDescription().equals(existingTransaction.getDescription())) {
-        matchesBuilder.add(
-            Match.probableDuplicate(initiallyKnownAccountsById.get(split.getAccountId())));
+      if (!probableDuplicates.isEmpty()) {
+        matchesBuilder.add(probableDuplicateMatch(probableDuplicates));
       }
     }
 
-    Multiset<Account> potentialAccounts = HashMultiset.create();
-    for (String token : tokenize(transaction.getDescription())) {
-      for (Split split : transactionDescriptionTokenIndex.get(token)) {
-        potentialAccounts.add(
-            initiallyKnownAccountsById.getOrDefault(split.getAccountId(), INVALID_ACCOUNT));
-      }
-    }
-    potentialAccounts.setCount(INVALID_ACCOUNT, 0);
-    int maxCount = potentialAccounts.entrySet().stream().mapToInt(Entry::getCount).max().orElse(1);
+    ImmutableMultiset<Split> matches =
+        FluentIterable.from(tokenize(sanitize(transaction.getDescription())))
+            .transformAndConcat(transactionDescriptionTokenIndex::get)
+            .toMultiset();
+    int maxCount = Sets.newHashSet(transactionDescriptionTokenIndex.values()).size();
     matchesBuilder.addAll(
-        FluentIterable.from(potentialAccounts.entrySet())
-            .filter(entry -> not(shouldExcludePredicate).apply(entry.getElement()))
+        FluentIterable.from(matches.entrySet())
+            .filter(
+                entry ->
+                    entry != null
+                        && not(shouldExcludePredicate).apply(accountForSplit(entry.getElement())))
             .transform(
                 (entry) ->
-                    Match.withProbability(entry.getElement(), 1.0 * entry.getCount() / maxCount)));
+                    Match.withProbability(
+                        MatchData.create(
+                            accountForSplit(entry.getElement()),
+                            transactionForSplit(entry.getElement()),
+                            entry.getElement()),
+                        1.0 * entry.getCount() / maxCount)));
     return matchesBuilder.build();
+  }
+
+  private Transaction transactionForSplit(Split split) {
+    return initiallyKnownTransactionsById.getOrDefault(
+        split.getTransactionId(),
+        newlyDiscoveredTransactionsById.getOrDefault(
+            split.getTransactionId(), Transaction.getDefaultInstance()));
+  }
+
+  private Account accountForSplit(Split split) {
+    return initiallyKnownAccountsById.getOrDefault(
+        split.getAccountId(), Account.getDefaultInstance());
+  }
+
+  private Match probableDuplicateMatch(List<Split> splits) {
+    ImmutableList.Builder<MatchData> matchesBuilder =
+        ImmutableList.builderWithExpectedSize(splits.size());
+    for (Split split : splits) {
+      matchesBuilder.add(
+          MatchData.create(accountForSplit(split), transactionForSplit(split), split));
+    }
+    return Match.probableDuplicate(matchesBuilder.build());
   }
 
   public enum MatchResult {
@@ -147,26 +184,39 @@ public class SplitMatcher {
   public interface ShouldExcludePredicate extends Predicate<Account> {}
 
   @AutoValue
-  public abstract static class Match {
-    public static final Comparator<Match> GREATEST_CONFIDENCE_FIRST_ORDERING =
-        Ordering.natural().reverse().onResultOf(match -> match.confidence());
+  public abstract static class MatchData {
 
-    public static Match probableDuplicate(Account account) {
-      return new AutoValue_SplitMatcher_Match(
-          MatchResult.PROBABLE_DUPLICATE, account, /* confidence= */ 1.0);
+    public static MatchData create(Account account, Transaction transaction, Split split) {
+      return new AutoValue_SplitMatcher_MatchData(account, transaction, split);
     }
 
-    public static Match withProbability(Account account, double probability) {
-      return new AutoValue_SplitMatcher_Match(MatchResult.PARTIAL_CONFIDENCE, account, probability);
+    public abstract Account account();
+
+    public abstract Transaction transaction();
+
+    public abstract Split split();
+  }
+
+  @AutoValue
+  public abstract static class Match {
+
+    public static Match probableDuplicate(ImmutableList<MatchData> duplicates) {
+      return new AutoValue_SplitMatcher_Match(
+          MatchResult.PROBABLE_DUPLICATE, duplicates, Optional.empty());
+    }
+
+    public static Match withProbability(MatchData match, double probability) {
+      return new AutoValue_SplitMatcher_Match(
+          MatchResult.PARTIAL_CONFIDENCE, ImmutableList.of(match), Optional.of(probability));
     }
 
     /** The type of the result. Depending on this type, some fields may not be filled in. */
     public abstract MatchResult result();
 
-    /** The account associated with this match. Filled for all MatchResult types. */
-    public abstract Account account();
+    /** The metadata associated with this match. Filled for all MatchResult types. */
+    public abstract ImmutableList<MatchData> matches();
 
-    /** The confidence of the result. Not guaranteed to be meaningful. */
-    public abstract Double confidence();
+    /** The confidence of the result. Only present if MatchResult==PARTIAL_CONFIDENCE. */
+    public abstract Optional<Double> confidence();
   }
 }
