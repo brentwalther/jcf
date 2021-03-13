@@ -4,6 +4,7 @@ java_library(
     name = "prompt",
     srcs = [
         "AccountPickerPrompt.java",
+        "BigDecimalPrompt.java",
         "DateTimeFormatPrompt.java",
         "FilePrompt.java",
         "ModelPickerPrompt.java",

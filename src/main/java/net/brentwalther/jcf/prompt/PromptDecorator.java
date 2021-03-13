@@ -52,4 +52,8 @@ public class PromptDecorator<T> implements Prompt<T> {
   public boolean shouldClearScreen() {
     return delegate.shouldClearScreen();
   }
+
+  public Prompt<T> delegate() {
+    return delegate;
+  }
 }

@@ -30,6 +30,7 @@ java_test(
         "//src/main/java/net/brentwalther/jcf/model",
         "//src/main/java/net/brentwalther/jcf/model/importer",
         "//src/test/java/net/brentwalther/jcf/testing:correspondences",
+        "@maven//:com_google_flogger_flogger_system_backend",
         "@maven//:com_google_guava_guava",
         "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",

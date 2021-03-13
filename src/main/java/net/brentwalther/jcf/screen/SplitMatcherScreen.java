@@ -34,9 +34,9 @@ import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.ModelTransforms;
 import net.brentwalther.jcf.prompt.AccountPickerPrompt;
+import net.brentwalther.jcf.prompt.BigDecimalPrompt;
 import net.brentwalther.jcf.prompt.OptionsPrompt;
 import net.brentwalther.jcf.prompt.Prompt.Result;
-import net.brentwalther.jcf.prompt.PromptBuilder;
 import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.string.Formatter;
@@ -57,18 +57,19 @@ public class SplitMatcherScreen {
       PromptEvaluator promptEvaluator,
       SplitMatcher splitMatcher,
       IndexedModel modelToMatch,
-      ImmutableMap<String, Account> allInitiallyKnownAccountsById) {
+      ImmutableMap<String, Account> initiallyKnownAccountsById) {
     ImmutableList<Transaction> transactionsToMatch = modelToMatch.getAllTransactions().asList();
-    Map<String, Account> allAccountsById = Maps.newHashMap(allInitiallyKnownAccountsById);
+    Map<String, Account> allAccountsById = Maps.newHashMap(initiallyKnownAccountsById);
     allAccountsById.putAll(modelToMatch.immutableAccountsByIdMap());
     ImmutableList.Builder<Split> allSplits = ImmutableList.builder();
-    ImmutableList.Builder<Transaction> allTransactions = ImmutableList.builder();
-    for (int i = 0; i < transactionsToMatch.size(); i++) {
-      Transaction transaction = transactionsToMatch.get(i);
+    List<Transaction> allTransactions = new ArrayList<>(transactionsToMatch.size());
+    for (Transaction transaction : transactionsToMatch) {
       List<Split> splitsForTransaction =
           new ArrayList<>(modelToMatch.splitsForTransaction(transaction));
-      int desiredNumMatchedSplits = 2;
-      while (splitsForTransaction.size() < desiredNumMatchedSplits) {
+      // Avoid infinite loops by restricting the number of iterations to the total number of
+      // accounts. If the user actually wants to split it that many ways, the worst case is we'll
+      // end up exiting early and they have to match the rest by hand.
+      for (int iter = 0; iter < initiallyKnownAccountsById.size() + 1; iter++) {
         int maxAmountStringLength =
             splitsForTransaction.stream()
                 .map(ModelTransforms::bigDecimalAmountForSplit)
@@ -79,7 +80,12 @@ public class SplitMatcherScreen {
 
         ImmutableList<String> statusMessages =
             ImmutableList.of(
-                (transactionsToMatch.size() - i) + " left to match (including this one).");
+                "Matched "
+                    + allTransactions.size()
+                    + " of "
+                    + transactionsToMatch.size()
+                    + " transactions thus far.");
+        // The date and description of the transaction followed by a list of its splits.
         ImmutableList<String> prefaces =
             ImmutableList.<String>builder()
                 .add(
@@ -143,8 +149,10 @@ public class SplitMatcherScreen {
         ImmutableList.Builder<Option> optionsBuilder =
             ImmutableList.<Option>builder()
                 .addAll(Lists.transform(topMatches, Option::create))
+                // Always allow a multi-split.
+                .add(Option.SPLIT_MULTIPLE_WAYS)
                 // Always allow the user to just leave it unmatched.
-                .add(Option.LEAVE_UNMATCHED);
+                .add(Option.DONE);
 
         // If the split matcher thought it could be a duplicate, allow the user to confirm that.
         Optional<Match> duplicateMatchResult =
@@ -155,7 +163,7 @@ public class SplitMatcherScreen {
         if (duplicateMatchResult.isPresent()) {
           duplicateOption =
               Option.create(
-                  "Skip. Found likely duplicate transactions occuring on: "
+                  "Skip. Found likely duplicate transactions occurring on: "
                       + Joiner.on(",")
                           .join(
                               FluentIterable.from(duplicateMatchResult.get().matches())
@@ -198,42 +206,36 @@ public class SplitMatcherScreen {
                 ? options.get(selectedOption)
                 : Option.create(accountsByName.get(selectedOption).get(0));
         if (option == Option.SPLIT_MULTIPLE_WAYS) {
-          Optional.ofNullable(
-                  promptEvaluator.blockingGetResult(
-                      AccountPickerPrompt.create(allAccountsById.values())))
-              .filter(r -> !Result.USER_INTERRUPT.equals(r))
-              .flatMap(Result::instance)
-              .ifPresent(
-                  account ->
-                      Optional.ofNullable(
-                              promptEvaluator.blockingGetResult(
-                                  PromptBuilder.<BigDecimal>create()
-                                      .withPromptString(
-                                          "Enter the amount for the split (w/ format [+-][0-9]+[.][0-9]+):")
-                                      .withTransformer(
-                                          input -> {
-                                            try {
-                                              return Result.bigDecimal(new BigDecimal(input));
-                                            } catch (NumberFormatException e) {
-                                              return Result.empty();
-                                            }
-                                          })
-                                      .build()))
-                          .flatMap(Result::instance)
-                          .ifPresent(
-                              splitAmount ->
-                                  splitsForTransaction.add(
-                                      ModelGenerators.splitBuilderWithAmount(splitAmount)
-                                          .setAccountId(account.getId())
-                                          .setTransactionId(transaction.getId())
-                                          .build())));
+          Optional<Account> account =
+              Optional.ofNullable(
+                      promptEvaluator.blockingGetResult(
+                          AccountPickerPrompt.create(allAccountsById.values())))
+                  .filter(r -> !Result.USER_INTERRUPT.equals(r))
+                  .flatMap(Result::instance);
+          if (!account.isPresent()) {
+            LOGGER.atInfo().log("No account selected. Skipping multi-split.");
+            continue;
+          }
+          Optional<BigDecimal> amount =
+              Optional.ofNullable(
+                      promptEvaluator.blockingGetResult(BigDecimalPrompt.create()))
+                  .flatMap(Result::instance);
+          if (!amount.isPresent()) {
+            LOGGER.atInfo().log("Split amount was not specified. Skipping multi-split.");
+            continue;
+          }
+          splitsForTransaction.add(
+              ModelGenerators.splitBuilderWithAmount(amount.get())
+                  .setAccountId(account.get().getId())
+                  .setTransactionId(transaction.getId())
+                  .build());
         } else if (option == duplicateOption) {
           // The user has confirmed that this transaction is a duplicate. Go ahead and
           // skip matching it.
           splitsForTransaction.clear();
           break;
-        } else if (option == Option.LEAVE_UNMATCHED) {
-          desiredNumMatchedSplits--;
+        } else if (option == Option.DONE) {
+          break;
         } else if (option.account().isPresent()) {
           Split newSplit =
               ModelGenerators.splitBuilderWithAmount(offsettingAmountOf(splitsForTransaction))
@@ -242,6 +244,7 @@ public class SplitMatcherScreen {
                   .build();
           splitsForTransaction.add(newSplit);
           splitMatcher.link(transaction, newSplit);
+          break;
         }
       }
 
@@ -252,7 +255,7 @@ public class SplitMatcherScreen {
     }
 
     return ModelGenerators.create(
-        allAccountsById.values(), allTransactions.build(), allSplits.build());
+        allAccountsById.values(), ImmutableList.copyOf(allTransactions), allSplits.build());
   }
 
   /** Returns a BigDecimal which is the negation of the sum of all split amounts. */
@@ -263,11 +266,15 @@ public class SplitMatcherScreen {
         .negate();
   }
 
+  @Deprecated
+  private SplitMatcherScreen() {
+    /* do not instantiate */
+  }
+
   @AutoValue
   public abstract static class Option {
-    public static final Option LEAVE_UNMATCHED = Option.create("Leave unmatched.");
-    public static final Option SPLIT_MULTIPLE_WAYS = Option.create("Split multiple ways.");
-    public static final Option SKIP_CONFIRM_DUPLICATE = Option.create("Skip. It is a duplicate.");
+    public static final Option DONE = Option.create("Done. (do not split further)");
+    public static final Option SPLIT_MULTIPLE_WAYS = Option.create("Split multiple ways...");
 
     private static Option create(String s) {
       return new AutoValue_SplitMatcherScreen_Option(s, Optional.empty());
