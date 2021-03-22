@@ -10,9 +10,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.flogger.FluentLogger;
+import com.google.re2j.Pattern;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,25 +81,50 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
           Sets.immutableEnumSet(DataField.DATE, DataField.DESCRIPTION, DataField.NEGATED_AMOUNT),
           Sets.immutableEnumSet(
               DataField.DATE, DataField.DESCRIPTION, DataField.CREDIT, DataField.DEBIT));
+  private static final Pattern NON_DECIMAL_CHARACTERS_PATTERN = Pattern.compile("[^\\-0-9.]");
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
   private final ImmutableList<String> csvLines;
   private final Map<DataField, Integer> csvFieldPositions;
   private final DateTimeFormatter dateTimeFormatter;
-  private final Account fromAccount;
+  private final Function<String, Account> accountGenerator;
 
   private CsvTransactionListingImporter(
       ImmutableList<String> csvLines,
       Map<DataField, Integer> csvFieldPositions,
       DateTimeFormatter dateTimeFormatter,
-      Account fromAccount) {
+      Function<String, Account> accountGenerator) {
     this.csvLines = csvLines;
     this.csvFieldPositions = csvFieldPositions;
     this.dateTimeFormatter = dateTimeFormatter;
-    this.fromAccount = fromAccount;
+    this.accountGenerator = accountGenerator;
   }
 
   private static int parseCurrencyValueStringAsCents(String dollarValueString) {
-    return Integer.parseInt(dollarValueString.replace(".", "").replace("$", "").replace(",", ""));
+    String strippedString =
+        NON_DECIMAL_CHARACTERS_PATTERN.matcher(dollarValueString).replaceAll("");
+    checkState(
+        strippedString.indexOf('.') == strippedString.lastIndexOf('.'),
+        "Decimal-like value '%s' had more than one decimal point!",
+        strippedString);
+    checkState(
+        strippedString.indexOf('-') == strippedString.lastIndexOf('-'),
+        "Decimal-like value '%s' had more than one negative sign!",
+        strippedString);
+    int decimalPointIndex = strippedString.indexOf('.');
+    if (decimalPointIndex < 0) {
+      return Integer.parseInt(strippedString) * 100;
+    } else if (decimalPointIndex == dollarValueString.length() - 1) {
+      return Integer.parseInt(strippedString.substring(0, decimalPointIndex)) * 100;
+    } else {
+      boolean isNegative = strippedString.charAt(0) == '-';
+      int dollars =
+          Integer.parseInt(strippedString.substring(isNegative ? 1 : 0, decimalPointIndex));
+      int fraction = Integer.parseInt(strippedString.substring(decimalPointIndex + 1));
+      while (fraction >= 100) {
+        fraction /= 10;
+      }
+      return (dollars * 100 + fraction) * (isNegative ? -1 : 1);
+    }
   }
 
   public static JcfModelImporter create(JcfEnvironment jcfEnvironment) {
@@ -123,14 +148,11 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       return NO_OP_IMPORTER;
     }
 
-    Optional<Account> csvAccount = jcfEnvironment.getCsvAccount();
-    if (!csvAccount.isPresent()) {
-      LOGGER.atSevere().log("No declared CSV account. Returning a no-op importer.");
-      return NO_OP_IMPORTER;
-    }
-
     return new CsvTransactionListingImporter(
-        inputCsvLines, csvFieldMappings, csvDateTimeFormatter.get(), csvAccount.get());
+        inputCsvLines,
+        csvFieldMappings,
+        csvDateTimeFormatter.get(),
+        jcfEnvironment.getImportAccountGenerator());
   }
 
   /** Returns true if the set of data fields is sufficient for attempting to do an import. */
@@ -145,8 +167,10 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   public Model get() {
     checkState(!csvLines.isEmpty());
     Iterable<String> rest = Iterables.skip(csvLines, 1);
-    List<Transaction> transactions = new ArrayList<>();
-    List<Split> splits = new ArrayList<>();
+    ImmutableList.Builder<Transaction> transactions =
+        ImmutableList.builderWithExpectedSize(csvLines.size() - 1);
+    ImmutableList.Builder<Split> splits = ImmutableList.builder();
+    ImmutableSet.Builder<Account> allAccounts = ImmutableSet.builder();
     int id = 0;
     for (String line : rest) {
       List<String> pieces = CSV_SPLITTER.apply(line);
@@ -180,6 +204,12 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       } else {
         valueNumerator = -1 * parseCurrencyValueStringAsCents(debit);
       }
+      Account fromAccount =
+          accountGenerator.apply(
+              csvFieldPositions.containsKey(DataField.ACCOUNT_IDENTIFIER)
+                  ? pieces.get(csvFieldPositions.get(DataField.ACCOUNT_IDENTIFIER))
+                  : "?");
+      allAccounts.add(fromAccount);
       Transaction transaction =
           Transaction.newBuilder()
               .setId(String.valueOf(id++))
@@ -195,7 +225,8 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
               .setValueDenominator(valueDenominator)
               .build());
     }
-    return ModelGenerators.create(ImmutableList.of(fromAccount), transactions, splits);
+    return ModelGenerators.create(
+        allAccounts.build().asList(), transactions.build(), splits.build());
   }
 
   private String getFieldValue(

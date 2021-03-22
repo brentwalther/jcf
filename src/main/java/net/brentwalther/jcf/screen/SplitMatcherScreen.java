@@ -47,7 +47,7 @@ public class SplitMatcherScreen {
   private static final Account UNMATCHED_PHANTOM_ACCOUNT =
       Account.newBuilder().setId("Imbalance").setName("Imbalance").build();
 
-  private static final String QUAD_SPACE_STRING = "    ";
+  private static final Joiner QUAD_SPACE_STRING_JOINER = Joiner.on("    ");
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
 
   /** The maximum number of direct account match candidates to show to the user. */
@@ -93,19 +93,18 @@ public class SplitMatcherScreen {
                         + " - "
                         + transaction.getDescription())
                 .addAll(
-                    FluentIterable.from(splitsForTransaction)
-                        .transform(
-                            (split) ->
-                                QUAD_SPACE_STRING
-                                    + Formatter.truncateOrLeftPadTo(
-                                        maxAmountStringLength,
-                                        Formatter.currency(
-                                            ModelTransforms.bigDecimalAmountForSplit(split)))
-                                    + QUAD_SPACE_STRING
-                                    + allAccountsById
-                                        .getOrDefault(
-                                            split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)
-                                        .getName()))
+                    Lists.transform(
+                        splitsForTransaction,
+                        (split) ->
+                            QUAD_SPACE_STRING_JOINER.join(
+                                "", // empty so we get a leading four space padding
+                                Formatter.truncateOrLeftPadTo(
+                                    maxAmountStringLength,
+                                    Formatter.currency(
+                                        ModelTransforms.bigDecimalAmountForSplit(split))),
+                                allAccountsById
+                                    .getOrDefault(split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)
+                                    .getName())))
                 .build();
 
         ImmutableList<Match> matches =
@@ -151,6 +150,7 @@ public class SplitMatcherScreen {
                 .addAll(Lists.transform(topMatches, Option::create))
                 // Always allow a multi-split.
                 .add(Option.SPLIT_MULTIPLE_WAYS)
+                .add(Option.NEGATE_CURRENT_SPLITS)
                 // Always allow the user to just leave it unmatched.
                 .add(Option.DONE);
 
@@ -159,20 +159,20 @@ public class SplitMatcherScreen {
             matches.stream()
                 .filter(match -> match.result().equals(MatchResult.PROBABLE_DUPLICATE))
                 .findFirst();
-        Option duplicateOption = null;
-        if (duplicateMatchResult.isPresent()) {
-          duplicateOption =
-              Option.create(
-                  "Skip. Found likely duplicate transactions occurring on: "
-                      + Joiner.on(",")
-                          .join(
-                              FluentIterable.from(duplicateMatchResult.get().matches())
-                                  .transform(MatchData::transaction)
-                                  .transform(t -> Instant.ofEpochSecond(t.getPostDateEpochSecond()))
-                                  .transform(Formatter::date)
-                                  .limit(5)));
-          optionsBuilder.add(duplicateOption);
-        }
+        Option duplicateOption =
+            duplicateMatchResult.isPresent()
+                ? Option.create(
+                    "Skip. Found likely duplicate transactions occurring on: "
+                        + Joiner.on(",")
+                            .join(
+                                FluentIterable.from(duplicateMatchResult.get().matches())
+                                    .transform(MatchData::transaction)
+                                    .transform(
+                                        t -> Instant.ofEpochSecond(t.getPostDateEpochSecond()))
+                                    .transform(Formatter::date)
+                                    .limit(5)))
+                : Option.OMIT;
+        optionsBuilder.add(duplicateOption);
 
         ImmutableMap<String, Option> options =
             Maps.uniqueIndex(optionsBuilder.build(), Option::stringRepresentation);
@@ -205,7 +205,7 @@ public class SplitMatcherScreen {
             options.containsKey(selectedOption)
                 ? options.get(selectedOption)
                 : Option.create(accountsByName.get(selectedOption).get(0));
-        if (option == Option.SPLIT_MULTIPLE_WAYS) {
+        if (option.equals(Option.SPLIT_MULTIPLE_WAYS)) {
           Optional<Account> account =
               Optional.ofNullable(
                       promptEvaluator.blockingGetResult(
@@ -217,8 +217,7 @@ public class SplitMatcherScreen {
             continue;
           }
           Optional<BigDecimal> amount =
-              Optional.ofNullable(
-                      promptEvaluator.blockingGetResult(BigDecimalPrompt.create()))
+              Optional.ofNullable(promptEvaluator.blockingGetResult(BigDecimalPrompt.create()))
                   .flatMap(Result::instance);
           if (!amount.isPresent()) {
             LOGGER.atInfo().log("Split amount was not specified. Skipping multi-split.");
@@ -229,7 +228,17 @@ public class SplitMatcherScreen {
                   .setAccountId(account.get().getId())
                   .setTransactionId(transaction.getId())
                   .build());
-        } else if (option == duplicateOption) {
+        } else if (option.equals(Option.NEGATE_CURRENT_SPLITS)) {
+          for (int i = 0; i < splitsForTransaction.size(); i++) {
+            BigDecimal negatedAmount =
+                ModelTransforms.bigDecimalAmountForSplit(splitsForTransaction.get(i)).negate();
+            splitsForTransaction.set(
+                i,
+                splitsForTransaction.get(i).toBuilder()
+                    .mergeFrom(ModelGenerators.splitBuilderWithAmount(negatedAmount).build())
+                    .build());
+          }
+        } else if (option.equals(duplicateOption) || option.equals(Option.OMIT)) {
           // The user has confirmed that this transaction is a duplicate. Go ahead and
           // skip matching it.
           splitsForTransaction.clear();
@@ -275,6 +284,9 @@ public class SplitMatcherScreen {
   public abstract static class Option {
     public static final Option DONE = Option.create("Done. (do not split further)");
     public static final Option SPLIT_MULTIPLE_WAYS = Option.create("Split multiple ways...");
+    public static final Option OMIT = Option.create("Omit/skip this transaction.");
+    public static final Option NEGATE_CURRENT_SPLITS =
+        Option.create("Multiply the current split amounts by -1");
 
     private static Option create(String s) {
       return new AutoValue_SplitMatcherScreen_Option(s, Optional.empty());

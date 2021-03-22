@@ -30,6 +30,10 @@ message SettingsProfile {
     // negative and visa versa. You'd choose this if AMOUNT causes your
     // splits to balance backwards.
     NEGATED_AMOUNT = 6;
+    // An identifier that refers to the specific account the transaction
+    // is splitting from/to. The value is passed to the account generator
+    // function at runtime.
+    ACCOUNT_IDENTIFIER = 7;
   }
   message CsvFieldPositions {
     // The position of a field specified as the 0-based column index
@@ -61,4 +65,9 @@ message SettingsProfile {
   // The name of the account that the transactions in the CSV input file are
   // associated with. This account need not exist beforehand.c
   optional string csv_account_name = 4;
+
+  // If set, the import account will be generated on-the-fly as a concatenation
+  // of this prefix and the value extracted from the import with the DataField
+  // ACCOUNT_IDENTIFIER defined in the settings profile.
+  optional string import_account_name_prefix = 5;
 }

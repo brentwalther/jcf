@@ -22,9 +22,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.SettingsProto.SettingsProfiles;
@@ -42,11 +44,9 @@ import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.model.importer.LedgerFileImporter;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
-import net.brentwalther.jcf.prompt.AccountPickerPrompt;
 import net.brentwalther.jcf.prompt.DateTimeFormatPrompt;
 import net.brentwalther.jcf.prompt.Prompt;
 import net.brentwalther.jcf.prompt.Prompt.Result;
-import net.brentwalther.jcf.prompt.PromptDecorator;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
 import net.brentwalther.jcf.prompt.impl.TerminalPromptEvaluator;
 
@@ -59,13 +59,13 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
 
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
   private static final PromptEvaluator ERROR_LOGGING_EVALUATOR =
-          new PromptEvaluator() {
-            @Override
-            public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
-              LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
-              return Result.empty();
-            }
-          };
+      new PromptEvaluator() {
+        @Override
+        public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
+          LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
+          return Result.empty();
+        }
+      };
   private static final ImmutableMap<EnvironmentType, Predicate<JcfEnvironment>>
       IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND =
           Maps.immutableEnumMap(
@@ -75,7 +75,6 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
                       CsvTransactionListingImporter.isAcceptableFieldMappingSet(
                               env.getCsvFieldMappings().keySet())
                           && env.getCsvDateFormat().isPresent()
-                          && env.getCsvAccount().isPresent()
                           && env.getDeclaredOutputFile().isPresent()
                           && !env.getInputCsvLines().isEmpty()));
   private final EnvironmentType environmentType;
@@ -172,7 +171,6 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       names = {"--help", "-h"},
       description = "Print this help text.",
       help = true)
-
   private boolean userWantsHelp = false;
 
   @Parameter(
@@ -189,11 +187,19 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   private String dateFormat = UNSET_FLAG;
 
   @Parameter(
-      names = {"--csv_account_name"},
+      names = {"--csv_account_name", "--import_account_name"},
       description =
           "Optional. The fully qualified name of the account for which the transactions in the CSV file "
               + "(--transaction_csv) are coming from.")
   private String csvAccountName = UNSET_FLAG;
+
+  @Parameter(
+      names = {"--import_account_name_prefix"},
+      description =
+          "Optional. If set, the import account will be generated on-the-fly as a concatenation of this "
+              + "prefix and the value extracted from the import with data type ACCOUNT_IDENTIFIER defined "
+              + "in the settings profile.")
+  private String importAccountPrefix = UNSET_FLAG;
 
   private JcfEnvironmentImpl(EnvironmentType environmentType) {
     this.environmentType = environmentType;
@@ -257,16 +263,19 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
                   }
                 })
             .toList();
+    Set<String> ignoredProfiles = new HashSet<>();
     for (SettingsProfiles settingsProfiles : allSettingsProfiles) {
       for (SettingsProfile profile : settingsProfiles.getSettingsProfileList()) {
         if (!profile.getName().isEmpty() && !enabledProfiles.contains(profile.getName())) {
-          LOGGER.atInfo().log(
-              "Not applying settings profile because it is not enabled: %s", profile.getName());
+          ignoredProfiles.add(profile.getName());
           continue;
         }
         applyProfile(profile);
       }
     }
+    LOGGER.atInfo().log(
+        "Ignored the follow settings profiles because they were not enabled by name: %s",
+        Joiner.on(", ").join(ignoredProfiles));
   }
 
   private void applyProfile(SettingsProfile profile) {
@@ -289,6 +298,12 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       LOGGER.atInfo().log(
           "From profile '%s', assuming CSV import is from account %s", profileName, csvAccountName);
     }
+    if (!profile.getImportAccountNamePrefix().isEmpty()) {
+      importAccountPrefix = profile.getImportAccountNamePrefix();
+      LOGGER.atInfo().log(
+          "From profile '%s', assuming import account name prefix %s",
+          profileName, importAccountPrefix);
+    }
   }
 
   @Override
@@ -302,18 +317,14 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   }
 
   @Override
-  public Optional<Account> getCsvAccount() {
-    if (getInputCsvLines().isEmpty()) {
-      return Optional.empty();
+  public Function<String, Account> getImportAccountGenerator() {
+    if (!csvAccountName.equals(UNSET_FLAG)) {
+      return (unused) -> ModelGenerators.simpleAccount(csvAccountName);
     }
-    Result<?> result =
-        csvAccountName.equals(UNSET_FLAG)
-            ? promptEvaluator.blockingGetResult(
-                PromptDecorator.topStatusBars(
-                    AccountPickerPrompt.create(getInitialModel().getAccountList()),
-                    ImmutableList.of("Please choose the account this CSV file represents.")))
-            : Result.account(ModelGenerators.simpleAccount(csvAccountName));
-    return result == Result.EMPTY ? Optional.empty() : (Optional<Account>) result.instance();
+    if (!importAccountPrefix.equals(UNSET_FLAG)) {
+      return (identifier) -> ModelGenerators.simpleAccount(importAccountPrefix.concat(identifier));
+    }
+    return (unused) -> ModelGenerators.simpleAccount("Imbalance (Account not set)");
   }
 
   @Override

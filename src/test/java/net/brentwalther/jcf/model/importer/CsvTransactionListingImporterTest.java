@@ -44,7 +44,7 @@ public class CsvTransactionListingImporterTest {
     mockEnvironment = mock(JcfEnvironment.class);
     when(mockEnvironment.getInputCsvLines()).thenReturn(DEFAULT_CSV_LINES);
     when(mockEnvironment.getCsvFieldMappings()).thenReturn(DEFAULT_CSV_FIELD_MAPPINGS);
-    when(mockEnvironment.getCsvAccount()).thenReturn(Optional.of(DEFAULT_ACCOUNT));
+    when(mockEnvironment.getImportAccountGenerator()).thenReturn((unused) -> DEFAULT_ACCOUNT);
     when(mockEnvironment.getCsvDateFormat()).thenReturn(Optional.of(DEFAULT_DATE_TIME_FORMATTER));
   }
 
@@ -69,18 +69,6 @@ public class CsvTransactionListingImporterTest {
     Model model = CsvTransactionListingImporter.create(mockEnvironment).get();
 
     // We consider empty input an early exit condition and return an importer that does nothing.
-    assertThat(model.getAccountList()).isEmpty();
-    assertThat(model.getTransactionList()).isEmpty();
-    assertThat(model.getSplitList()).isEmpty();
-  }
-
-  @Test
-  public void testEmptyInputAccount() {
-    when(mockEnvironment.getCsvAccount()).thenReturn(Optional.empty());
-    Model model = CsvTransactionListingImporter.create(mockEnvironment).get();
-
-    // We consider a missing input account as an early exit condition and return an importer that
-    // does nothing.
     assertThat(model.getAccountList()).isEmpty();
     assertThat(model.getTransactionList()).isEmpty();
     assertThat(model.getSplitList()).isEmpty();
@@ -127,7 +115,7 @@ public class CsvTransactionListingImporterTest {
     when(mockEnvironment.getInputCsvLines()).thenReturn(DEFAULT_CSV_LINES.subList(0, 1));
 
     Model model = CsvTransactionListingImporter.create(mockEnvironment).get();
-    assertThat(model.getAccountList()).containsExactly(DEFAULT_ACCOUNT);
+    assertThat(model.getAccountList()).isEmpty();
     assertThat(model.getTransactionList()).isEmpty();
     assertThat(model.getSplitList()).isEmpty();
   }

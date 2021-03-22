@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import java.util.function.Function;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
@@ -19,9 +20,10 @@ public interface JcfEnvironment {
   Optional<File> getDeclaredOutputFile();
 
   /**
-   * Returns the declared account where the transactions in the input CSV file are split from/to.
+   * A generator that yields the canonical account for a given string extracted during CSV import.
+   * Note that the function is not required to use the input string.
    */
-  Optional<Account> getCsvAccount();
+  Function<String, Account> getImportAccountGenerator();
 
   /** Returns the date format for the transactions in the input CSV file. */
   Optional<DateTimeFormatter> getCsvDateFormat();
