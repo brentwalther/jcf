@@ -43,41 +43,31 @@ import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.ModelGenerators;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
 import net.brentwalther.jcf.model.importer.LedgerFileImporter;
+import net.brentwalther.jcf.model.importer.SQLiteConnector;
 import net.brentwalther.jcf.model.importer.TsvTransactionDescAccountMappingImporter;
 import net.brentwalther.jcf.prompt.DateTimeFormatPrompt;
-import net.brentwalther.jcf.prompt.Prompt;
 import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.prompt.PromptEvaluator;
-import net.brentwalther.jcf.prompt.impl.TerminalPromptEvaluator;
 
 public class JcfEnvironmentImpl implements JcfEnvironment {
 
-  private static final Supplier<PromptEvaluator> LAZY_TERMINAL_PROMPT_EVALUATOR =
-      Suppliers.memoize(TerminalPromptEvaluator::createOrDie);
   /** The empty string, representing an unset string flag value. */
   private static final String UNSET_FLAG = "";
 
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
-  private static final PromptEvaluator ERROR_LOGGING_EVALUATOR =
-      new PromptEvaluator() {
-        @Override
-        public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
-          LOGGER.atSevere().log("Returning null result for prompt %s", prompt);
-          return Result.empty();
-        }
-      };
-  private static final ImmutableMap<EnvironmentType, Predicate<JcfEnvironment>>
+  private static final ImmutableMap<Command, Predicate<JcfEnvironment>>
       IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND =
           Maps.immutableEnumMap(
               ImmutableMap.of(
-                  EnvironmentType.CSV_MATCHER,
+                  Command.CSV_MATCHER,
                   (env) ->
                       CsvTransactionListingImporter.isAcceptableFieldMappingSet(
                               env.getCsvFieldMappings().keySet())
                           && env.getCsvDateFormat().isPresent()
                           && env.getDeclaredOutputFile().isPresent()
-                          && !env.getInputCsvLines().isEmpty()));
-  private final EnvironmentType environmentType;
+                          && !env.getInputCsvLines().isEmpty(),
+                  Command.GENERATE_REPORT,
+                  (env) -> !env.getReportType().isEmpty()));
   private final PromptEvaluator promptEvaluator;
   private final Supplier<JCommander> lazyCommandLineParser =
       Suppliers.memoize(
@@ -109,6 +99,12 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   private EagerlyLoadedTextFile inputCsv = EagerlyLoadedTextFile.EMPTY;
 
   @Parameter(
+      names = {"--gnucash-sqlite-db"},
+      description =
+          "Optional. The file path to a GnuCash SQLite DB from which to read a model from.")
+  private String gnuCashSqliteDbFilePath = UNSET_FLAG;
+
+  @Parameter(
       names = {"--settings_profile_file"},
       description =
           "Optional. A comma separated list of paths to SettingProfiles textproto format files to apply to this run. "
@@ -129,37 +125,6 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
       description =
           "Optional. A file path to a TSV file containing two columns: (1) transaction description (2) account name")
   private EagerlyLoadedTextFile descToAccountTsv = EagerlyLoadedTextFile.EMPTY;
-
-  private final Supplier<Model> initialModelSupplier =
-      Suppliers.memoize(
-          () -> {
-            Model model = ModelGenerators.empty();
-            // This is a custom format that I added early on instead of just writing a ledger CLI
-            // format importer. It's probably just useless cruft now but may as well keep it since
-            // it's not broken as far as I am aware.
-            if (!descToAccountTsv.lines().isEmpty()) {
-              model =
-                  ModelGenerators.merge(
-                          extractModelFrom(
-                              FileType.TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING,
-                              descToAccountTsv.lines()))
-                      .into(model);
-            }
-            if (!ledgerAccountListing.lines().isEmpty()) {
-              JcfModel.Model allAccounts =
-                  extractModelFrom(FileType.LEDGER_ACCOUNT_LISTING, ledgerAccountListing.lines());
-              model = ModelGenerators.merge(allAccounts).into(model);
-            }
-            if (!masterLedger.lines().isEmpty()) {
-              model =
-                  ModelGenerators.merge(extractModelFrom(FileType.LEDGER_CLI, masterLedger.lines()))
-                      .into(model);
-            }
-            LOGGER.atInfo().log(
-                "Generated the initial model containing %s accounts and %s transactions.",
-                model.getAccountCount(), model.getTransactionCount());
-            return model;
-          });
 
   @Parameter(
       names = {"--output"},
@@ -201,23 +166,60 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
               + "in the settings profile.")
   private String importAccountPrefix = UNSET_FLAG;
 
-  private JcfEnvironmentImpl(EnvironmentType environmentType) {
-    this.environmentType = environmentType;
-    this.promptEvaluator = getPromptEvaluatorForEnvironment(environmentType);
-  }
+  @Parameter(
+      names = {"--report_type"},
+      description =
+          "Required when command is 'generate_report'. The report type to generate and output.")
+  private String reportType = UNSET_FLAG;
 
-  private static PromptEvaluator getPromptEvaluatorForEnvironment(EnvironmentType environmentType) {
-    switch (environmentType) {
-      case UNKNOWN:
-      case CSV_MATCHER:
-        return LAZY_TERMINAL_PROMPT_EVALUATOR.get();
-    }
-    return ERROR_LOGGING_EVALUATOR;
+  private final Supplier<Model> initialModelSupplier =
+      Suppliers.memoize(
+          () -> {
+            Model model = ModelGenerators.empty();
+            if (!gnuCashSqliteDbFilePath.isEmpty()) {
+              File file = new File(gnuCashSqliteDbFilePath);
+              if (file.exists() && file.isFile()) {
+                model = SQLiteConnector.create(file).get();
+              } else {
+                LOGGER.atWarning().log(
+                    "GNU Cash SQLite DB path did not refer to a file that exists. Path was: %s",
+                    gnuCashSqliteDbFilePath);
+              }
+            }
+            // This is a custom format that I added early on instead of just writing a ledger CLI
+            // format importer. It's probably just useless cruft now but may as well keep it since
+            // it's not broken as far as I am aware.
+            if (!descToAccountTsv.lines().isEmpty()) {
+              model =
+                  ModelGenerators.merge(
+                          extractModelFrom(
+                              FileType.TSV_TRANSACTION_DESCRIPTION_TO_ACCOUNT_NAME_MAPPING,
+                              descToAccountTsv.lines()))
+                      .into(model);
+            }
+            if (!ledgerAccountListing.lines().isEmpty()) {
+              JcfModel.Model allAccounts =
+                  extractModelFrom(FileType.LEDGER_ACCOUNT_LISTING, ledgerAccountListing.lines());
+              model = ModelGenerators.merge(allAccounts).into(model);
+            }
+            if (!masterLedger.lines().isEmpty()) {
+              model =
+                  ModelGenerators.merge(extractModelFrom(FileType.LEDGER_CLI, masterLedger.lines()))
+                      .into(model);
+            }
+            LOGGER.atInfo().log(
+                "Generated the initial model containing %s accounts and %s transactions.",
+                model.getAccountCount(), model.getTransactionCount());
+            return model;
+          });
+
+  private JcfEnvironmentImpl(PromptEvaluator promptEvaluator) {
+    this.promptEvaluator = promptEvaluator;
   }
 
   public static JcfEnvironment createFromArgsForEnv(
-      String[] args, EnvironmentType environmentType) {
-    JcfEnvironmentImpl context = new JcfEnvironmentImpl(environmentType);
+      String[] args, PromptEvaluator promptEvaluator) {
+    JcfEnvironmentImpl context = new JcfEnvironmentImpl(promptEvaluator);
     // Will initialize local @Parameter flags.
     context.lazyCommandLineParser.get().parse(args);
     context.applySettingsProfiles();
@@ -307,6 +309,11 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   }
 
   @Override
+  public String getReportType() {
+    return reportType;
+  }
+
+  @Override
   public Model getInitialModel() {
     return initialModelSupplier.get();
   }
@@ -358,9 +365,7 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
                               return fields.get(index);
                             })
                         .filter(Predicates.notNull()))))
-        .flatMap(Result::instance)
-        .filter(instance -> instance instanceof DateTimeFormatter)
-        .map(instance -> (DateTimeFormatter) instance);
+        .flatMap(Result::instance);
   }
 
   @Override
@@ -376,10 +381,13 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
   @Override
   public boolean needsHelp() {
     return userWantsHelp
-        || (environmentType.name.equals(mainArgument)
-            && !IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND
-                .getOrDefault(environmentType, Predicates.alwaysTrue())
-                .apply(this));
+        || (!IS_ENVIRONMENT_SATISFACTORY_PREDICATE_BY_COMMAND
+            .getOrDefault(
+                FluentIterable.from(Command.values())
+                    .firstMatch(command -> command.name.equals(mainArgument))
+                    .or(Command.UNKNOWN),
+                Predicates.alwaysTrue())
+            .apply(this));
   }
 
   @Override
@@ -392,14 +400,14 @@ public class JcfEnvironmentImpl implements JcfEnvironment {
     return promptEvaluator;
   }
 
-  public enum EnvironmentType {
+  public enum Command {
     UNKNOWN(""),
     CSV_MATCHER("csv_matcher"),
-    SWING_UI("swing_ui");
+    GENERATE_REPORT("generate_report");
 
     private final String name;
 
-    EnvironmentType(String name) {
+    Command(String name) {
       this.name = name;
     }
   }

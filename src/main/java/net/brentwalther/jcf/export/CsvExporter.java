@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Split;
@@ -28,11 +29,23 @@ public class CsvExporter {
     try {
       List<ExportItem> exportItems = new ArrayList<>();
       for (Split split : indexedModel.getAllSplits()) {
+        Optional<Account> matchingAccount = indexedModel.getAccountById(split.getAccountId());
+        if (!matchingAccount.isPresent()) {
+          LOGGER.atWarning().log(
+              "Skipping split that referred to a non existing account with ID: %s",
+              split.getAccountId());
+          continue;
+        }
+        Optional<Transaction> matchingTransaction =
+            indexedModel.getTransactionById(split.getTransactionId());
+        if (!matchingTransaction.isPresent()) {
+          LOGGER.atWarning().log(
+              "Skipping split that referred to a non existing transaction with ID: %s",
+              split.getTransactionId());
+          continue;
+        }
         ExportItem exportItem =
-            ExportItem.create(
-                indexedModel.getAccountById(split.getAccountId()),
-                indexedModel.getTransactionById(split.getTransactionId()),
-                split);
+            ExportItem.create(matchingAccount.get(), matchingTransaction.get(), split);
         if (Iterables.any(filters, (filter) -> filter.shouldExclude(exportItem))) {
           continue;
         }

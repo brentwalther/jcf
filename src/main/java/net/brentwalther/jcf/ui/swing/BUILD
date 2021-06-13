@@ -6,5 +6,6 @@ java_library(
         "SwingUi.java",
     ],
     deps = [
+        "//src/main/java/net/brentwalther/jcf/prompt:api",
     ],
 )

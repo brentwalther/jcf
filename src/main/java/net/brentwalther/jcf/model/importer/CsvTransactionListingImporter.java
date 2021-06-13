@@ -7,9 +7,10 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.flogger.FluentLogger;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
 import com.google.re2j.Pattern;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import net.brentwalther.jcf.SettingsProto.SettingsProfile.DataField;
 import net.brentwalther.jcf.environment.JcfEnvironment;
 import net.brentwalther.jcf.model.JcfModel.Account;
@@ -166,26 +168,36 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
   @Override
   public Model get() {
     checkState(!csvLines.isEmpty());
-    Iterable<String> rest = Iterables.skip(csvLines, 1);
     ImmutableList.Builder<Transaction> transactions =
         ImmutableList.builderWithExpectedSize(csvLines.size() - 1);
     ImmutableList.Builder<Split> splits = ImmutableList.builder();
     ImmutableSet.Builder<Account> allAccounts = ImmutableSet.builder();
-    int id = 0;
-    for (String line : rest) {
+    Supplier<Hasher> idHasherSupplier =
+        () ->
+            Hashing.goodFastHash(32)
+                .newHasher()
+                .putLong(System.currentTimeMillis())
+                .putDouble(Math.random());
+    for (int i = 1; i < csvLines.size(); i++) {
+      String line = csvLines.get(i);
+      if (line.isEmpty()) {
+        // An empty line isn't interesting. Just ignore it rather than logging
+        // a warning message.
+        continue;
+      }
       List<String> pieces = CSV_SPLITTER.apply(line);
       String dateString = getFieldValue(pieces, DataField.DATE, csvFieldPositions);
       if (dateString.isEmpty()) {
         LOGGER.atWarning().log(
-            "Did not find a date at index %s in comma-delimited line. Skipping it: '%s'",
-            csvFieldPositions.get(DataField.DATE), line);
+            "Didn't find a date at row %s, column index %s of CSV file.\nLine - %s",
+            i, csvFieldPositions.get(DataField.DATE), line);
         continue;
       }
       Instant date = Formatter.parseDateFrom(dateString, dateTimeFormatter);
       String description = getFieldValue(pieces, DataField.DESCRIPTION, csvFieldPositions);
       if (description.isEmpty()) {
         LOGGER.atWarning().log(
-            "Declared description index %s was empty in comma-delimited line. Skipping it: '%s'",
+            "Didn't find a description at row %s, column index %s of CSV line.\nLine - %s",
             csvFieldPositions.get(DataField.DESCRIPTION), line);
         continue;
       }
@@ -212,7 +224,7 @@ public class CsvTransactionListingImporter implements JcfModelImporter {
       allAccounts.add(fromAccount);
       Transaction transaction =
           Transaction.newBuilder()
-              .setId(String.valueOf(id++))
+              .setId(idHasherSupplier.get().putInt(i).hash().toString())
               .setPostDateEpochSecond(date.getEpochSecond())
               .setDescription(description)
               .build();

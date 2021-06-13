@@ -122,6 +122,30 @@ public class LedgerFileImporterTest {
   }
 
   @Test
+  public void testBareAmountWithoutCurrency() {
+    // JCF doesn't have any notion of currency right now. Thus, leaving out a dollar sign should be
+    // perfectly legal.
+    Model model =
+        LedgerFileImporter.create(
+                ImmutableList.of(
+                    "2020-10-31 * Halloween superstore",
+                    "  Liabilities:Credit Cards:Chase  $-99",
+                    "  Expenses:Misc $99"))
+            .get();
+    assertThat(model.getAccountList())
+        .comparingElementsUsing(Correspondences.ACCOUNT_NAME_CORRESPONDENCE)
+        .containsExactly("Liabilities:Credit Cards:Chase", "Expenses:Misc");
+    assertThat(model.getTransactionList())
+        .comparingElementsUsing(Correspondences.TRANSACTION_DESCRIPTION_CORRESPONDENCE)
+        .containsExactly("Halloween superstore");
+    assertThat(
+            FluentIterable.from(model.getSplitList())
+                .transform(ModelTransforms::bigDecimalAmountForSplit))
+        .comparingElementsUsing(Correspondences.BIGDECIMAL_COMPARETO_CORRESPONDENCE)
+        .containsExactly(new BigDecimal("99"), new BigDecimal("-99"));
+  }
+
+  @Test
   public void testTransactionWithImpliedBalance() {
     // The last split doesn't have an amount which implies it takes the remaining balance.
     Model model =

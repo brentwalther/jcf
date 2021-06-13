@@ -1,131 +1,82 @@
 package net.brentwalther.jcf.ui.swing.impl;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Ordering;
 import java.awt.Container;
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.Map;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
-import net.brentwalther.jcf.environment.JcfEnvironment;
-import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Split;
-import net.brentwalther.jcf.model.JcfModel.Transaction;
-import net.brentwalther.jcf.model.ModelTransforms;
-import net.brentwalther.jcf.string.Formatter;
+import javax.swing.SwingUtilities;
+import net.brentwalther.jcf.prompt.Prompt;
+import net.brentwalther.jcf.prompt.Prompt.Result;
 import net.brentwalther.jcf.ui.swing.SwingUi;
 
 public class SwingUiImpl implements SwingUi {
 
-  private final JcfEnvironment jcfEnvironment;
   private final Container rootContainer;
+  private final JTextArea textArea;
+  private final ConcurrentLinkedQueue<String> pendingStringsToFlush = new ConcurrentLinkedQueue<>();
 
-  public SwingUiImpl(JcfEnvironment jcfEnvironment) {
-    this.jcfEnvironment = jcfEnvironment;
-
-    ImmutableMap<String, Account> includedAccountsById =
-        Maps.uniqueIndex(
-            FluentIterable.from(jcfEnvironment.getInitialModel().getAccountList()), Account::getId);
-    ImmutableMap<String, Transaction> allTransactionsById =
-        Maps.uniqueIndex(jcfEnvironment.getInitialModel().getTransactionList(), Transaction::getId);
-
-    ImmutableMultimap<Instant, Split> splitsByDistinctInstants =
-        ImmutableListMultimap.copyOf(
-            FluentIterable.from(jcfEnvironment.getInitialModel().getSplitList())
-                .filter(
-                    s ->
-                        s != null
-                            && includedAccountsById.containsKey(s.getAccountId())
-                            && allTransactionsById.containsKey(s.getTransactionId()))
-                .transform(
-                    s ->
-                        s == null
-                            ? Maps.immutableEntry(Instant.MIN, Split.getDefaultInstance())
-                            : Maps.immutableEntry(
-                                Instant.ofEpochSecond(
-                                    allTransactionsById
-                                        .getOrDefault(
-                                            s.getTransactionId(), Transaction.getDefaultInstance())
-                                        .getPostDateEpochSecond()),
-                                s)));
-
-    ImmutableList.Builder<String> lines = ImmutableList.builder();
-    Map<String, BigDecimal> balances =
-        Maps.newLinkedHashMapWithExpectedSize(includedAccountsById.size());
-    ImmutableSortedSet<Instant> orderedDistinctTransactionInstants =
-        ImmutableSortedSet.copyOf(
-            Ordering.from(Instant::compareTo), splitsByDistinctInstants.keySet());
-    ZonedDateTime firstDate =
-        orderedDistinctTransactionInstants.first().atZone(ZoneId.systemDefault());
-    ZonedDateTime nextCutoff =
-        LocalDateTime.of(
-                firstDate.getYear(),
-                firstDate.getMonth(),
-                /* dayOfMonth= */ 1,
-                /* hour= */ 0,
-                /* minute= */ 0,
-                /* second= */ 0)
-            .atZone(ZoneId.systemDefault())
-            .plusMonths(1);
-    while (nextCutoff.minusMonths(1).isBefore(ZonedDateTime.now())) {
-      ImmutableSortedSet<Instant> distinctInstants =
-          orderedDistinctTransactionInstants
-              .tailSet(nextCutoff.minusMonths(1).toInstant())
-              .headSet(nextCutoff.toInstant());
-      if (distinctInstants.isEmpty()) {
-        break;
-      }
-      for (Instant instant : distinctInstants) {
-        for (Split split : splitsByDistinctInstants.get(instant)) {
-          balances.put(
-              split.getAccountId(),
-              balances
-                  .getOrDefault(split.getAccountId(), BigDecimal.ZERO)
-                  .add(ModelTransforms.bigDecimalAmountForSplit(split)));
-        }
-      }
-      lines.add(
-          Joiner.on('\t')
-              .join(
-                  Iterables.concat(
-                      ImmutableList.of(Formatter.date(nextCutoff.toInstant())),
-                      FluentIterable.from(balances.values()).transform(Formatter::currency))));
-      nextCutoff = nextCutoff.plusMonths(1);
-    }
-    this.rootContainer =
-        new JScrollPane(
-            new JTextArea(
-                Joiner.on('\n')
-                    .join(
-                        FluentIterable.of(
-                                Joiner.on('\t')
-                                    .join(FluentIterable.of("Date").append(balances.keySet())))
-                            .append(Lists.reverse(lines.build())))));
+  public SwingUiImpl() {
+    textArea = new JTextArea();
+    textArea.setEditable(false);
+    this.rootContainer = new JScrollPane(textArea);
   }
 
-  public static SwingUi create(JcfEnvironment jcfEnvironment) {
-    return new SwingUiImpl(jcfEnvironment);
+  public static SwingUi create() {
+    return new SwingUiImpl();
   }
 
   public static SwingUi dummyAppFromHelpText(String string) {
-    return new ErrorUi(string);
+    return new net.brentwalther.jcf.ui.swing.impl.ErrorUi(string);
   }
 
   @Override
   public Container getRootContainer() {
     return rootContainer;
+  }
+
+  @Override
+  public <T> Result<T> blockingGetResult(Prompt<T> prompt) {
+    // Don't do anything right now.
+    return Result.empty();
+  }
+
+  @Override
+  public PrintWriter getPrinter() {
+    return new PrintWriter(
+        new Writer() {
+          @Override
+          public void write(char[] chars, int off, int len) throws IOException {
+            pendingStringsToFlush.add(new String(chars, off, len));
+            SwingUtilities.invokeLater(
+                () -> {
+                  List<String> stringsToFlush = new ArrayList<>(pendingStringsToFlush.size());
+                  String pendingString = pendingStringsToFlush.poll();
+                  while (pendingString != null) {
+                    stringsToFlush.add(pendingString);
+                    pendingString = pendingStringsToFlush.poll();
+                  }
+                  int longestString =
+                      stringsToFlush.stream().mapToInt(String::length).max().orElse(0);
+
+                  textArea.setColumns(Math.max(textArea.getColumns(), longestString));
+                  textArea.setRows(textArea.getRows() + stringsToFlush.size());
+                  stringsToFlush.forEach(textArea::append);
+                });
+          }
+
+          @Override
+          public void flush() throws IOException {}
+
+          @Override
+          public void close() throws IOException {
+            // Since the client of the writer is finished, go ahead and clear the area.
+            textArea.setText("");
+          }
+        });
   }
 }

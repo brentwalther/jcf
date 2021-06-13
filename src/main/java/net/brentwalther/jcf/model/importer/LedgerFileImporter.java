@@ -3,7 +3,6 @@ package net.brentwalther.jcf.model.importer;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
@@ -23,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import net.brentwalther.jcf.model.JcfModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
-import net.brentwalther.jcf.model.JcfModel.Account.Type;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
 import net.brentwalther.jcf.model.ModelGenerators;
@@ -37,7 +35,7 @@ public class LedgerFileImporter implements JcfModelImporter {
 
   private static final String ACCOUNT_NAME_PREFIX = "account";
   private static final Pattern CURRENCY_LIKE_AT_END_OF_LINE_PATTERN =
-      Pattern.compile("[$][-]?[0-9,]+([.]\\d+)?\\s*$");
+      Pattern.compile("\\s*[$][-]?[0-9,]+([.]\\d+)?\\s*$");
   private static final ImmutableMap<Pattern, DateTimeFormatter> DATE_TIME_PATTERNS_TO_FORMATTERS =
       ImmutableMap.<Pattern, DateTimeFormatter>builder()
           .put(
@@ -47,15 +45,6 @@ public class LedgerFileImporter implements JcfModelImporter {
               Pattern.compile("[12]\\d{3}/\\d{2}/\\d{2}"),
               DateTimeFormatter.ofPattern("yyyy/MM/dd"))
           .build();
-  private static final ImmutableMap<String, Type>
-      ACCOUNT_TYPES_BY_LOWERCASE_TOP_LEVEL_ACCOUNT_NAMES =
-          ImmutableMap.<String, Type>builder()
-              .put("assets", Type.ASSET)
-              .put("liabilities", Type.LIABILITY)
-              .put("income", Type.INCOME)
-              .put("expenses", Type.EXPENSE)
-              .put("equity", Type.EQUITY)
-              .build();
 
   private final ImmutableList<String> ledgerFileLines;
 
@@ -68,19 +57,7 @@ public class LedgerFileImporter implements JcfModelImporter {
   }
 
   private static Account accountForLedgerName(String accountName) {
-    return ModelGenerators.simpleAccount(accountName).toBuilder()
-        .setType(
-            guessAccountType(
-                FluentIterable.from(Splitter.on(':').split(accountName)).first().or("")))
-        .build();
-  }
-
-  private static Type guessAccountType(String topLevelAccountName) {
-    if (Strings.isNullOrEmpty(topLevelAccountName)) {
-      return Type.UNKNOWN_TYPE;
-    }
-    return ACCOUNT_TYPES_BY_LOWERCASE_TOP_LEVEL_ACCOUNT_NAMES.getOrDefault(
-        topLevelAccountName.toLowerCase(), Type.UNKNOWN_TYPE);
+    return ModelGenerators.simpleAccount(accountName);
   }
 
   public JcfModel.Model get() {
@@ -147,7 +124,7 @@ public class LedgerFileImporter implements JcfModelImporter {
                         .replace(",", ""))
                 : currentSplits.stream()
                     .map(ModelTransforms::bigDecimalAmountForSplit)
-                    .reduce(BigDecimal.ZERO, (first, second) -> first.add(second))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
                     .negate();
         Split.Builder splitBuilder =
             ModelGenerators.splitBuilderWithAmount(amount)
@@ -155,24 +132,27 @@ public class LedgerFileImporter implements JcfModelImporter {
         Account account =
             accountForLedgerName(
                 foundAmount ? line.substring(0, currencyMatcher.start()).trim() : line.trim());
-        if (!accountsById.containsKey(account.getId())) {
-          LOGGER.atInfo().log("Creating new account: %s", account);
+        Account oldAccount = accountsById.put(account.getId(), account);
+        if (oldAccount != null && !oldAccount.equals(account)) {
+          LOGGER.atInfo().log("Replaced account [%s] with [%s]", oldAccount, account);
           accountsById.put(account.getId(), account);
         }
         currentSplits.add(splitBuilder.setAccountId(account.getId()).build());
       } else if (tokens.get(0).equals(ACCOUNT_NAME_PREFIX)) {
         FluentIterable<String> rest = FluentIterable.from(tokens).skip(1);
-        String accountName = spaceJoiner.join(rest);
+        String accountName = spaceJoiner.join(rest).trim();
         Account account = accountForLedgerName(accountName);
-        if (!accountsById.containsKey(account.getId())) {
-          LOGGER.atInfo().log("Adding new account from explicit account declaration: %s", account);
+        Account oldAccount = accountsById.put(account.getId(), account);
+        if (oldAccount != null && !oldAccount.equals(account)) {
+          LOGGER.atInfo().log("Replaced account [%s] with [%s]", oldAccount, account);
           accountsById.put(account.getId(), account);
         }
       } else if (isProbableDate(tokens.get(0))) {
         Optional<Instant> maybeInstant = parseDateAsInstant(tokens.get(0));
         if (!maybeInstant.isPresent()) {
           LOGGER.atWarning().log(
-              "Thought this was a date but could not parse it: " + tokens.get(0));
+              "Thought the field %s was a date but could not parse it. Ignoring line: %s",
+              tokens.get(0), line);
           continue;
         }
         // For the first line of transaction, the format is defined at:

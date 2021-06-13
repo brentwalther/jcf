@@ -11,12 +11,13 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultiset;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,11 @@ public class SplitMatcher {
           s -> DOT_COM_PATTERN.matcher(s).replaceAll(""),
           s -> NON_ALPHANUM_CHAR_PATTERN.matcher(s).replaceAll(" "),
           s -> REPEATED_DIGITS_PATTERN.matcher(s).replaceAll(" "));
+  /**
+   * The maximum expected amount of days two 'probable duplicate' transactions can be separated by.
+   */
+  private static final long MAXIMUM_EXPECTED_DAYS_FOR_TRANSACTIONS_TO_CLEAR = 7;
+
   private final ImmutableMap<String, Account> initiallyKnownAccountsById;
   private final ImmutableMap<String, Transaction> initiallyKnownTransactionsById;
   private final SetMultimap<String, Split> transactionDescriptionTokenIndex;
@@ -111,25 +117,29 @@ public class SplitMatcher {
       ShouldExcludePredicate shouldExcludePredicate) {
     ImmutableList.Builder<Match> matchesBuilder = ImmutableList.builder();
 
+    ImmutableSet.Builder<Split> probableDuplicates = ImmutableSet.builder();
     for (Split existingSplit : transactionDescriptionTokenIndex.values()) {
       // NOTE: This can quickly become slow if splitsForTransaction is very
       // large. In practice it should only contain one split, but maybe a
       // few.
       BigDecimal splitAmount = bigDecimalAmountForSplit(existingSplit);
-      List<Split> probableDuplicates = new ArrayList<>();
       for (Split split : splitsForTransaction) {
         boolean hasSameAmount = splitAmount.compareTo(bigDecimalAmountForSplit(split)) == 0;
         boolean hasSameAccount = split.getAccountId().equals(existingSplit.getAccountId());
-        boolean hasSamePostDate =
-            transactionForSplit(split).getPostDateEpochSecond()
-                == transactionForSplit(existingSplit).getPostDateEpochSecond();
-        if (hasSameAmount && (hasSameAccount || hasSamePostDate)) {
+        boolean postDateIsSimilar =
+            Duration.ofSeconds(
+                        Math.abs(
+                            transactionForSplit(split).getPostDateEpochSecond()
+                                - transactionForSplit(existingSplit).getPostDateEpochSecond()))
+                    .toDays()
+                < MAXIMUM_EXPECTED_DAYS_FOR_TRANSACTIONS_TO_CLEAR;
+        if (hasSameAmount && hasSameAccount && postDateIsSimilar) {
           probableDuplicates.add(existingSplit);
         }
       }
-      if (!probableDuplicates.isEmpty()) {
-        matchesBuilder.add(probableDuplicateMatch(probableDuplicates));
-      }
+    }
+    if (!probableDuplicates.build().isEmpty()) {
+      matchesBuilder.add(probableDuplicateMatch(probableDuplicates.build().asList()));
     }
 
     ImmutableMultiset<Split> matches =

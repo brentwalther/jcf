@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
@@ -107,18 +108,31 @@ public class SplitMatcherScreen {
                                     .getName())))
                 .build();
 
+        ImmutableList<Account> accountsOfExistingSplits =
+            ImmutableList.copyOf(
+                Lists.transform(
+                    splitsForTransaction, split -> allAccountsById.get(split.getAccountId())));
         ImmutableList<Match> matches =
             splitMatcher.getTopMatches(
                 transaction,
                 splitsForTransaction,
                 /* shouldExcludePredicate= */ account ->
-                    FluentIterable.from(splitsForTransaction)
-                        .transform(
-                            split ->
-                                allAccountsById
-                                    .getOrDefault(split.getAccountId(), UNMATCHED_PHANTOM_ACCOUNT)
-                                    .getName())
-                        .contains(account.getName()));
+                    FluentIterable.from(accountsOfExistingSplits)
+                        .transform(Account::getName)
+                        .anyMatch(
+                            existingSplitAccountName -> {
+                              if (account.getName().equals(existingSplitAccountName)) {
+                                // Don't suggest to split the transaction with an account it's
+                                // already been split with.
+                                return true;
+                              }
+                              String commonPrefix =
+                                  Strings.commonPrefix(existingSplitAccountName, account.getName());
+                              // Exclude the account if it shares at least one 'parent' account
+                              // in common. This only works for account hierarchies that use a
+                              // colon separator.
+                              return commonPrefix.chars().filter(i -> i == ':').count() > 1;
+                            }));
 
         // Add all the partial confidence matches ordered by their confidence.
         Map<Account, Double> accountProbabilities = new HashMap<>();
@@ -163,7 +177,7 @@ public class SplitMatcherScreen {
             duplicateMatchResult.isPresent()
                 ? Option.create(
                     "Skip. Found likely duplicate transactions occurring on: "
-                        + Joiner.on(",")
+                        + Joiner.on(" - ")
                             .join(
                                 FluentIterable.from(duplicateMatchResult.get().matches())
                                     .transform(MatchData::transaction)

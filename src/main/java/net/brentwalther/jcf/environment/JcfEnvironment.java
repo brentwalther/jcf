@@ -51,4 +51,10 @@ public interface JcfEnvironment {
 
   /** Returns the prompt evaluator that should be used for the configured environment. */
   PromptEvaluator getPromptEvaluator();
+
+  /**
+   * Returns the report type the user specified, if any. If the user didn't specify a type then
+   * empty string is returned.
+   */
+  String getReportType();
 }

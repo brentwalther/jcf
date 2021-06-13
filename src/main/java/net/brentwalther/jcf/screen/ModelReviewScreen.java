@@ -1,5 +1,7 @@
 package net.brentwalther.jcf.screen;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.HashMultiset;
@@ -107,8 +109,10 @@ class ModelReviewScreen {
                       "that splits every transaction (the primary 'source' of these transactions).",
                       "Please only export CSVs from a model created from a single account")));
         } else {
-          Account mostFrequentlyOccurringAccount =
+          Optional<Account> mostFrequentlyOccurringAccountOptional =
               indexedModel.getAccountById(mostFrequentlyOccurringAccountId.getElement());
+          checkState(mostFrequentlyOccurringAccountOptional.isPresent());
+          Account mostFrequentlyOccurringAccount = mostFrequentlyOccurringAccountOptional.get();
           Optional.ofNullable(promptEvaluator.blockingGetResult(FilePrompt.anyFile()))
               .filter(r -> !r.equals(Result.userInterrupt()))
               .flatMap(Result::instance)

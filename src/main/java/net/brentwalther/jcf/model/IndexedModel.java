@@ -9,6 +9,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimaps;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Optional;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
@@ -60,12 +61,12 @@ public class IndexedModel {
     return splitsByTransactionId.values();
   }
 
-  public Account getAccountById(String accountId) {
-    return accountsById.getOrDefault(accountId, ModelGenerators.EMPTY_ACCOUNT);
+  public Optional<Account> getAccountById(String accountId) {
+    return Optional.ofNullable(accountsById.get(accountId));
   }
 
-  public Transaction getTransactionById(String transactionId) {
-    return transactionsById.getOrDefault(transactionId, ModelGenerators.EMPTY_TRANSACTION);
+  public Optional<Transaction> getTransactionById(String transactionId) {
+    return Optional.ofNullable(transactionsById.get(transactionId));
   }
 
   public String stableIdentifier() {

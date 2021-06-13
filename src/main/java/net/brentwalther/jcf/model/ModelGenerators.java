@@ -1,8 +1,10 @@
 package net.brentwalther.jcf.model;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
@@ -14,7 +16,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import net.brentwalther.jcf.model.JcfModel.Account;
+import net.brentwalther.jcf.model.JcfModel.Account.Type;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.JcfModel.Split;
 import net.brentwalther.jcf.model.JcfModel.Transaction;
@@ -22,9 +26,17 @@ import net.brentwalther.jcf.string.Formatter;
 
 public class ModelGenerators {
 
-  public static final Account EMPTY_ACCOUNT = Account.getDefaultInstance();
-  public static final Transaction EMPTY_TRANSACTION = Transaction.getDefaultInstance();
   private static final FluentLogger LOGGER = FluentLogger.forEnclosingClass();
+
+  private static final ImmutableMap<String, Type> ACCOUNT_TYPES_BY_LOWERCASE_NAME_PREFIXES =
+      ImmutableMap.<String, Type>builder()
+          .put("asset", Type.ASSET)
+          .put("liability", Type.LIABILITY)
+          .put("liabilities", Type.LIABILITY)
+          .put("income", Type.INCOME)
+          .put("expense", Type.EXPENSE)
+          .put("equity", Type.EQUITY)
+          .build();
 
   public static Model empty() {
     return ModelGenerators.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
@@ -145,11 +157,22 @@ public class ModelGenerators {
   }
 
   public static Account simpleAccount(String accountName) {
+    accountName = accountName.trim();
     return Account.newBuilder()
         .setId(accountName)
         .setName(accountName)
-        .setType(Account.Type.UNKNOWN_TYPE)
+        .setType(guessAccountTypeFromName(accountName))
         .build();
+  }
+
+  private static Account.Type guessAccountTypeFromName(String accountName) {
+    if (Strings.isNullOrEmpty(accountName)) {
+      return Type.UNKNOWN_TYPE;
+    }
+    return FluentIterable.from(ACCOUNT_TYPES_BY_LOWERCASE_NAME_PREFIXES.entrySet())
+        .firstMatch(entry -> accountName.toLowerCase().startsWith(entry.getKey()))
+        .transform(Entry::getValue)
+        .or(Type.UNKNOWN_TYPE);
   }
 
   /** A callable interface representing a pending merge into a supplied base model. */

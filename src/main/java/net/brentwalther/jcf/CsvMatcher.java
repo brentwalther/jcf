@@ -4,7 +4,6 @@ import com.google.common.collect.Maps;
 import com.google.common.flogger.FluentLogger;
 import java.io.File;
 import java.util.Optional;
-import net.brentwalther.jcf.JcfEnvironmentImpl.EnvironmentType;
 import net.brentwalther.jcf.environment.JcfEnvironment;
 import net.brentwalther.jcf.export.LedgerExporter;
 import net.brentwalther.jcf.matcher.SplitMatcher;
@@ -12,6 +11,7 @@ import net.brentwalther.jcf.model.IndexedModel;
 import net.brentwalther.jcf.model.JcfModel.Account;
 import net.brentwalther.jcf.model.JcfModel.Model;
 import net.brentwalther.jcf.model.importer.CsvTransactionListingImporter;
+import net.brentwalther.jcf.prompt.impl.TerminalPromptEvaluator;
 import net.brentwalther.jcf.screen.SplitMatcherScreen;
 
 public class CsvMatcher {
@@ -27,7 +27,8 @@ public class CsvMatcher {
 
   public static void main(String[] args) {
     CsvMatcher csvMatcher =
-        new CsvMatcher(JcfEnvironmentImpl.createFromArgsForEnv(args, EnvironmentType.CSV_MATCHER));
+        new CsvMatcher(
+            JcfEnvironmentImpl.createFromArgsForEnv(args, TerminalPromptEvaluator.createOrDie()));
     csvMatcher.run();
   }
 

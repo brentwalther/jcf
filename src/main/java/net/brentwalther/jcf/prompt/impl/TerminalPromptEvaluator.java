@@ -133,4 +133,9 @@ public class TerminalPromptEvaluator implements PromptEvaluator {
 
     return Result.empty();
   }
+
+  @Override
+  public PrintWriter getPrinter() {
+    return terminal.writer();
+  }
 }
